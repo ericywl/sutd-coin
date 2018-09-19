@@ -1,6 +1,6 @@
 from transaction import *
 from merkle_tree import *
-import datetime, hashlib, ecdsa, statistics, json
+import datetime, hashlib, ecdsa, statistics, json, random
 
 class Block:
     def __init__(self, transactions, header, header_hash):
@@ -39,13 +39,13 @@ class Blockchain:
         genesis_hash = genesis.header_hash
         hash_block_map = { genesis_hash: genesis }
         # Keep track of end blocks and chain length
-        endhash_clen_map = { genesis_hash: 1 }
+        endhash_clen_map = { genesis_hash: 0 }
         return cls(hash_block_map, endhash_clen_map)
 
     def _get_chain_length(self, block):
         # Compute chain length from block
         prev_hash = block.header["prev_hash"]
-        chain_len = 1
+        chain_len = 0
         while prev_hash != None:
             for b in self.hash_block_map.values():
                 if prev_hash == b.header_hash:
@@ -126,7 +126,8 @@ class Blockchain:
         # Resolve potential forks in block
         # No forks
         if len(self.endhash_clen_map) == 1:
-            return list(self.hash_block_map.values())[0]
+            blk_hash = list(self.endhash_clen_map.keys())[0]
+            return self.hash_block_map[blk_hash]
         # Get hashes of end-blocks with longest chain length
         longest_clen = max(self.endhash_clen_map.values())
         block_hashes = [
@@ -157,16 +158,23 @@ if __name__ == "__main__":
     hashes = []
     for i in range(10):
         transactions = []
-        sender_sk = ecdsa.SigningKey.generate()
-        sender_vk = sender_sk.get_verifying_key()
-        receiver_sk = ecdsa.SigningKey.generate()
-        receiver_vk = receiver_sk.get_verifying_key()
-        for i in range(10):
-            t = Transaction.new(sender_vk, receiver_vk, i, sender_sk, str(i))
+        for j in range(10):
+            sender_sk = ecdsa.SigningKey.generate()
+            sender_vk = sender_sk.get_verifying_key()
+            receiver_sk = ecdsa.SigningKey.generate()
+            receiver_vk = receiver_sk.get_verifying_key()
+            t = Transaction.new(sender_vk, receiver_vk, j+1, sender_sk, str(j))
             transactions.append(t.to_json())
         prev_block = blockchain.resolve()
-        hashes.append(prev_block.header_hash)
         new_block = Block.new(transactions, prev_block.header_hash)
+        hashes.append(new_block.header_hash)
         blockchain.add(new_block)
-    print(hashes)
+    prev_hash  = hashes[2]
+    for i in range(4):
+        fork_block = Block.new(transactions, prev_hash)
+        blockchain.add(fork_block)
+        prev_hash = fork_block.header_hash
+    print("Pre-resolve: " + str(blockchain.endhash_clen_map))
+    blockchain.resolve()
+    print("Post-resolve: " + str(blockchain.endhash_clen_map))
 
