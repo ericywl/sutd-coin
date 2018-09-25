@@ -9,6 +9,12 @@ class Block:
         self.header_hash = header_hash
 
     @classmethod
+    def hash_header(cls, header):
+        inp = json.dumps(header).encode()
+        interm = hashlib.sha256(inp).digest()
+        return hashlib.sha256(interm).hexdigest()
+
+    @classmethod
     def new(cls, transactions, prev_hash):
         root = MerkleTree(transactions).get_root()
         header = {
@@ -18,8 +24,7 @@ class Block:
             "nonce": 0
         }
         while True:
-            inp = json.dumps(header).encode()
-            header_hash = hashlib.sha256(inp).hexdigest()
+            header_hash = Block.hash_header(header)
             if header_hash < Blockchain.TARGET:
                 return cls(transactions, header, header_hash)
             header["nonce"] += 1
@@ -48,7 +53,7 @@ class Blockchain:
         chain_len = 0
         while prev_hash != None:
             for b in self.hash_block_map.values():
-                if prev_hash == b.header_hash:
+                if prev_hash == Block.hash_header(b.header):
                     prev_hash = b.header["prev_hash"]
                     chain_len += 1
                     break
@@ -59,7 +64,7 @@ class Blockchain:
         # Validate block 
         if not self.validate(block):
             raise Exception("Invalid block.")
-        curr_hash = block.header_hash
+        curr_hash = Block.hash_header(block.header)
         prev_hash = block.header["prev_hash"]
         self.hash_block_map[curr_hash] = block
         # If the previous block is one of the last blocks,
@@ -94,9 +99,8 @@ class Blockchain:
     def validate(self, block):
         # Validate the block
         # Check header hash matches and is smaller than Blockchain.TARGET
-        inp = json.dumps(block.header).encode()
-        comp_hash = hashlib.sha256(inp).hexdigest()
-        if comp_hash != block.header_hash or comp_hash >= Blockchain.TARGET:
+        comp_hash = Block.hash_header(block.header)
+        if comp_hash >= Blockchain.TARGET:
             print("Error: Invalid header hash in block")
             return False
         prev_hash = block.header["prev_hash"]
@@ -116,7 +120,7 @@ class Blockchain:
         chain_pow = block.header["nonce"]
         while prev_hash != None:
             for b in self.hash_block_map.values():
-                if prev_hash == b.header_hash:
+                if prev_hash == Block.hash_header(b.header):
                     prev_hash = b.header["prev_hash"]
                     chain_pow += b.header["nonce"]
                     break
@@ -166,7 +170,8 @@ if __name__ == "__main__":
             t = Transaction.new(sender_vk, receiver_vk, j+1, sender_sk, str(j))
             transactions.append(t.to_json())
         prev_block = blockchain.resolve()
-        new_block = Block.new(transactions, prev_block.header_hash)
+        header_hash = Block.hash_header(prev_block.header)
+        new_block = Block.new(transactions, header_hash)
         hashes.append(new_block.header_hash)
         blockchain.add(new_block)
     prev_hash  = hashes[2]
