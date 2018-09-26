@@ -1,3 +1,4 @@
+import algo
 import ecdsa, json, datetime, os
 
 class Transaction:
@@ -22,7 +23,7 @@ class Transaction:
         sender_str = sender.to_string().hex()
         receiver_str = receiver.to_string().hex()
         trans = cls(sender_str, receiver_str, amount, comment)
-        trans.sign(privkey)
+        trans.sign(privkey.to_string().hex())
         if trans.validate():
             return trans
 
@@ -59,15 +60,14 @@ class Transaction:
     def sign(self, privkey):
         # Sign object with private key passed
         # That can be called within new()
-        self._signature = privkey.sign(self.to_json().encode()).hex()
+        self._signature = algo.sign(self.to_json(), privkey)
 
     def verify(self):
         # Verify signature
         # Remove signature before verifying
         sig = self._signature
         self._signature = None
-        sender_key = ecdsa.VerifyingKey.from_string(bytes.fromhex(self._sender))
-        res = sender_key.verify(bytes.fromhex(sig), self.to_json().encode())
+        res = algo.verify_sig(sig, self.to_json(), self._sender)
         self._signature = sig
         return res
 
