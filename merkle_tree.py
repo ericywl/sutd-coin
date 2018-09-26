@@ -1,7 +1,8 @@
+import algo
+
 import math, hashlib
 import time, random, string
 from collections import deque
-from transaction import *
 
 class MerkleTree:
     class Node:
@@ -18,17 +19,12 @@ class MerkleTree:
             return str(self.id)
 
     def __init__(self, items=[]):
-        if items == None or len(items) <= 0:
-            self.is_built = True
-            self.leaves_map = {}
-            self.tree_height = 0
-            self.root = None
-        else:
-            self.is_built = False
-            self.leaves_map = self._hash_items(items)
-            self.tree_height = math.ceil(math.log(len(items), 2))
-            self.root = None
-            self.build()
+        self.is_built = False
+        self.leaves_map = self._hash_items(items)
+        self.tree_height \
+            = math.ceil(math.log(len(items), 2)) if len(items) > 0 else 0
+        self.root = None
+        self.build()
 
     def _hash_items(self, items):
         # Create hash table from list of items
@@ -36,18 +32,18 @@ class MerkleTree:
         res = {}
         for i in range(len(items)):
             item = items[i]
-            item_hash = hashlib.sha256(item.encode()).hexdigest()
+            item_hash = algo.hash1(item)
             item_node = self.Node(i + 1, None, None, item_hash)
             res[item] = item_node
         return res
 
     def _concat_hash(self, left, right):
         # Hash the concatenation of hashes in left and right node
-        return hashlib.sha256((left.hash_val + right.hash_val).encode()).hexdigest()
+        return algo.hash1(left.hash_val + right.hash_val)
 
     def add(self, entry):
         # Add entries to tree
-        entry_hash = hashlib.sha256(entry.encode()).hexdigest()
+        entry_hash = algo.hash1(entry)
         entry_node = self.Node(len(self.leaves_map) + 1, None, None, entry_hash)
         self.leaves_map[entry] = entry_node
         self.tree_height = math.ceil(math.log(len(self.leaves_map), 2))
@@ -57,11 +53,15 @@ class MerkleTree:
     def build(self):
         # Build tree computing new root
         leaves = list(self.leaves_map.values())
+        leaves_len = len(leaves)
+        if leaves_len <= 0:
+            self.is_built = True
+            return
         for n in leaves:
             n.parent = None
             n.height = 0
         dq = deque(leaves)
-        index = len(leaves) + 1
+        index = leaves_len + 1
         if len(dq) == 1:
             self.root = dq[0]
         while self.root == None:
@@ -109,7 +109,7 @@ class MerkleTree:
 
 def verify_proof(entry, proof, root):
     # Verifies proof for entry and given root. Returns boolean.
-    temp = hashlib.sha256(entry.encode()).hexdigest()
+    temp = algo.hash1(entry)
     for p, d in proof:
         if d == "right":
             inp = temp + p
@@ -117,11 +117,12 @@ def verify_proof(entry, proof, root):
             inp = p + temp
         else:
             raise Exception("Invalid direction in proofs.")
-        temp = hashlib.sha256(inp.encode()).hexdigest()
+        temp = algo.hash1(inp)
     return temp == root
 
 
 if __name__ == "__main__":
+    from transaction import *
     chars = string.ascii_letters + string.digits
     items = []
     tree = MerkleTree()
