@@ -1,4 +1,4 @@
-import ecdsa, json, datetime
+import ecdsa, json, datetime, os
 
 class Transaction:
     def __init__(self, sender, receiver, amount, comment=""):
@@ -7,16 +7,20 @@ class Transaction:
         self.amount = amount
         self.comment = comment
         self.timestamp = datetime.datetime.utcnow().timestamp()
+        self.nonce = os.urandom(32).hex()
         self.signature = None
 
     @classmethod
-    def new(cls, sender, receiver, amount, priv_key, comment=""):
+    def new(cls, sender, receiver, amount, privkey, comment=""):
         # Instantiates object from passed values
         sender = sender.to_string().hex()
         receiver = receiver.to_string().hex()
         trans = cls(sender, receiver, amount, comment)
-        trans.sign(priv_key)
-        return trans
+        trans.sign(privkey)
+        if not trans.validate():
+            raise Exception("Invalid new Transaction parameters.")
+        else:
+            return trans
 
     def to_json(self):
         # Serializes object to JSON string
@@ -46,10 +50,10 @@ class Transaction:
         else:
             return trans
 
-    def sign(self, key):
+    def sign(self, privkey):
         # Sign object with private key passed
         # That can be called within new()
-        self.signature = key.sign(self.to_json().encode()).hex()
+        self.signature = privkey.sign(self.to_json().encode()).hex()
 
     def verify(self):
         # Verify signature
