@@ -1,6 +1,7 @@
-import ecdsa
 from transaction import *
 from blockchain import *
+
+import ecdsa
 
 class Miner:
     def __init__(self, privkey, pubkey):
@@ -35,9 +36,11 @@ class Miner:
         else:
             self.transactions.add(trans_json)
 
+    def _broadcast_block(self, block_hash):
+
     def create_block(self):
-        self.blockchain.resolve()
-        added_trans =
+        last_blk = self.blockchain.resolve()
+        added_transactions = set(self.blockchain.transactions)
         return
 
     def add_block():
