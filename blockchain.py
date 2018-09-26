@@ -1,45 +1,9 @@
-from transaction import *
-from merkle_tree import *
-import datetime, hashlib, ecdsa, statistics, json, random
+from block import *
+import algo
 
-class Block:
-    def __init__(self, transactions, header):
-        self._transactions = transactions
-        self._header = header
-
-    @classmethod
-    def hash_header(cls, header):
-        inp = json.dumps(header).encode()
-        interm = hashlib.sha256(inp).digest()
-        return hashlib.sha256(interm).hexdigest()
-
-    @classmethod
-    def new(cls, transactions, prev_hash):
-        root = MerkleTree(transactions).get_root()
-        header = {
-            "prev_hash": prev_hash,
-            "root": root,
-            "timestamp": datetime.datetime.utcnow().timestamp(),
-            "nonce": 0
-        }
-        while True:
-            header_hash = Block.hash_header(header)
-            if header_hash < Blockchain.TARGET:
-                return cls(transactions, header)
-            header["nonce"] += 1
-
-    @property
-    def transactions(self):
-        return self._transactions
-
-    @property
-    def header(self):
-        return self._header
+import statistics, copy
 
 class Blockchain:
-    _zeroes = "000"
-    TARGET = _zeroes + (64 - len(_zeroes)) * "f"
-
     def __init__(self, hash_block_map, endhash_clen_map):
         self._hash_block_map = hash_block_map
         self._endhash_clen_map = endhash_clen_map
@@ -47,13 +11,12 @@ class Blockchain:
     @classmethod
     def new(cls, genesis=None):
         if not genesis:
-            genesis = Block.new(None, None)
-        genesis_hash = Block.hash_header(genesis.header)
+            genesis = Block.new(None)
+        genesis_hash = algo.hash2_dic(genesis.header)
         hash_block_map = { genesis_hash: genesis }
         # Keep track of end blocks and chain length
         endhash_clen_map = { genesis_hash: 0 }
         return cls(hash_block_map, endhash_clen_map)
-
 
     def _get_chain_length(self, block):
         # Compute chain length from block
@@ -61,7 +24,7 @@ class Blockchain:
         chain_len = 0
         while prev_hash != None:
             for b in self._hash_block_map.values():
-                if prev_hash == Block.hash_header(b.header):
+                if prev_hash == algo.hash2_dic(b.header):
                     prev_hash = b.header["prev_hash"]
                     chain_len += 1
                     break
@@ -72,7 +35,7 @@ class Blockchain:
         # Validate block 
         if not self.validate(block):
             raise Exception("Invalid block.")
-        curr_hash = Block.hash_header(block.header)
+        curr_hash = algo.hash2_dic(block.header)
         prev_hash = block.header["prev_hash"]
         self._hash_block_map[curr_hash] = block
         # If the previous block is one of the last blocks,
@@ -90,7 +53,7 @@ class Blockchain:
     def _prev_exist(self, prev_hash):
         # Check block with prev_hash exist in list
         for b in self._hash_block_map.values():
-            if prev_hash == Block.hash_header(b.header):
+            if prev_hash == algo.hash2_dic(b.header):
                 return True
         return False
 
@@ -106,9 +69,9 @@ class Blockchain:
 
     def validate(self, block):
         # Validate the block
-        # Check header hash matches and is smaller than Blockchain.TARGET
-        comp_hash = Block.hash_header(block.header)
-        if comp_hash >= Blockchain.TARGET:
+        # Check header hash matches and is smaller than Block.TARGET
+        comp_hash = algo.hash2_dic(block.header)
+        if comp_hash >= Block.TARGET:
             print("Error: Invalid header hash in block")
             return False
         prev_hash = block.header["prev_hash"]
@@ -128,7 +91,7 @@ class Blockchain:
         chain_pow = block.header["nonce"]
         while prev_hash != None:
             for b in self._hash_block_map.values():
-                if prev_hash == Block.hash_header(b.header):
+                if prev_hash == algo.hash2_dic(b.header):
                     prev_hash = b.header["prev_hash"]
                     chain_pow += b.header["nonce"]
                     break
@@ -166,6 +129,21 @@ class Blockchain:
         return blk
 
     @property
+    def blocks(self):
+        res = []
+        for b in list(self._hash_block_map.values()):
+            res.append(copy.deepcopy(b))
+        return res
+
+    @property
+    def transactions(self):
+        res = []
+        for b in self.blocks:
+            for t in b.transactions:
+                res.append(copy.deepcopy(t))
+        return res
+
+    @property
     def hash_block_map(self):
         return self._hash_block_map
 
@@ -173,7 +151,8 @@ class Blockchain:
     def endhash_clen_map(self):
         return self._endhash_clen_map
 
-if __name__ == "__main__":
+
+def main():
     blockchain = Blockchain.new()
     hashes = []
     for i in range(10):
@@ -186,16 +165,23 @@ if __name__ == "__main__":
             t = Transaction.new(sender_vk, receiver_vk, j+1, sender_sk, str(j))
             transactions.append(t.to_json())
         prev_block = blockchain.resolve()
-        prev_hash = Block.hash_header(prev_block.header)
-        new_block = Block.new(transactions, prev_hash)
-        hashes.append(Block.hash_header(new_block.header))
+        prev_hash = algo.hash2_dic(prev_block.header)
+        new_block = Block.new(prev_hash, transactions)
+        hashes.append(algo.hash2_dic(new_block.header))
         blockchain.add(new_block)
     prev_hash = hashes[2]
     for i in range(4):
-        fork_block = Block.new(transactions, prev_hash)
+        fork_block = Block.new(prev_hash, transactions)
         blockchain.add(fork_block)
-        prev_hash = Block.hash_header(fork_block.header)
+        prev_hash = algo.hash2_dic(fork_block.header)
     print("Pre-resolve: " + str(blockchain.endhash_clen_map))
-    blockchain.resolve()
+    last_blk = blockchain.resolve()
     print("Post-resolve: " + str(blockchain.endhash_clen_map))
+    print("Last block hash: " + algo.hash2_dic(last_blk.header))
+
+if __name__ == "__main__":
+    from transaction import *
+    from merkle_tree import *
+    import ecdsa
+    main()
 
