@@ -130,7 +130,7 @@ if __name__ == "__main__":
         sender_vk = sender_sk.get_verifying_key()
         receiver_sk = ecdsa.SigningKey.generate()
         receiver_vk = receiver_sk.get_verifying_key()
-        t = Transaction.new(sender_vk, receiver_vk, i, sender_sk, "hello world")
+        t = Transaction.new(sender_vk, receiver_vk, i+1, sender_sk, "hello world")
         tree.add(t.to_json())
         items.append(t.to_json())
     root = tree.get_root()

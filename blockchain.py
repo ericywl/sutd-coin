@@ -3,10 +3,9 @@ from merkle_tree import *
 import datetime, hashlib, ecdsa, statistics, json, random
 
 class Block:
-    def __init__(self, transactions, header, header_hash):
-        self.transactions = transactions
-        self.header = header
-        self.header_hash = header_hash
+    def __init__(self, transactions, header):
+        self._transactions = transactions
+        self._header = header
 
     @classmethod
     def hash_header(cls, header):
@@ -26,33 +25,42 @@ class Block:
         while True:
             header_hash = Block.hash_header(header)
             if header_hash < Blockchain.TARGET:
-                return cls(transactions, header, header_hash)
+                return cls(transactions, header)
             header["nonce"] += 1
+
+    @property
+    def transactions(self):
+        return self._transactions
+
+    @property
+    def header(self):
+        return self._header
 
 class Blockchain:
     _zeroes = "000"
     TARGET = _zeroes + (64 - len(_zeroes)) * "f"
 
     def __init__(self, hash_block_map, endhash_clen_map):
-        self.hash_block_map = hash_block_map
-        self.endhash_clen_map = endhash_clen_map
+        self._hash_block_map = hash_block_map
+        self._endhash_clen_map = endhash_clen_map
 
     @classmethod
     def new(cls, genesis=None):
         if not genesis:
             genesis = Block.new(None, None)
-        genesis_hash = genesis.header_hash
+        genesis_hash = Block.hash_header(genesis.header)
         hash_block_map = { genesis_hash: genesis }
         # Keep track of end blocks and chain length
         endhash_clen_map = { genesis_hash: 0 }
         return cls(hash_block_map, endhash_clen_map)
+
 
     def _get_chain_length(self, block):
         # Compute chain length from block
         prev_hash = block.header["prev_hash"]
         chain_len = 0
         while prev_hash != None:
-            for b in self.hash_block_map.values():
+            for b in self._hash_block_map.values():
                 if prev_hash == Block.hash_header(b.header):
                     prev_hash = b.header["prev_hash"]
                     chain_len += 1
@@ -66,23 +74,23 @@ class Blockchain:
             raise Exception("Invalid block.")
         curr_hash = Block.hash_header(block.header)
         prev_hash = block.header["prev_hash"]
-        self.hash_block_map[curr_hash] = block
+        self._hash_block_map[curr_hash] = block
         # If the previous block is one of the last blocks,
         # replace the previous hash out with the current one
         # ie. make the current block be one of the last blocks,
         # and increment its chain length
-        if prev_hash in self.endhash_clen_map.keys():
-            chain_len = self.endhash_clen_map.pop(prev_hash)
-            self.endhash_clen_map[curr_hash] = chain_len + 1
+        if prev_hash in self._endhash_clen_map.keys():
+            chain_len = self._endhash_clen_map.pop(prev_hash)
+            self._endhash_clen_map[curr_hash] = chain_len + 1
         # Else, compute the chain length by traversing backwards
         # and add the current block hash into dictionary
         else:
-            self.endhash_clen_map[curr_hash] = self._get_chain_length(block)
+            self._endhash_clen_map[curr_hash] = self._get_chain_length(block)
 
     def _prev_exist(self, prev_hash):
         # Check block with prev_hash exist in list
-        for b in self.hash_block_map.values():
-            if prev_hash == b.header_hash:
+        for b in self._hash_block_map.values():
+            if prev_hash == Block.hash_header(b.header):
                 return True
         return False
 
@@ -91,7 +99,7 @@ class Blockchain:
         prev_timestamps = []
         prev_hash = block.header["prev_hash"]
         while prev_hash != None and len(prev_timestamps) < 11:
-            b = self.hash_block_map[prev_hash]
+            b = self._hash_block_map[prev_hash]
             prev_timestamps.append(b.header["timestamp"])
             prev_hash = b.header["prev_hash"]
         return block.header["timestamp"] > statistics.median(prev_timestamps)
@@ -119,43 +127,51 @@ class Blockchain:
         prev_hash = block.header["prev_hash"]
         chain_pow = block.header["nonce"]
         while prev_hash != None:
-            for b in self.hash_block_map.values():
+            for b in self._hash_block_map.values():
                 if prev_hash == Block.hash_header(b.header):
                     prev_hash = b.header["prev_hash"]
                     chain_pow += b.header["nonce"]
                     break
         return chain_pow
 
+    def _pow(block_hash):
+        return self._get_chain_pow(self._hash_block_map[block_hash])
+
     def resolve(self):
         # Resolve potential forks in block
         # No forks
-        if len(self.endhash_clen_map) == 1:
-            blk_hash = list(self.endhash_clen_map.keys())[0]
-            return self.hash_block_map[blk_hash]
+        if len(self._endhash_clen_map) == 1:
+            blk_hash = list(self._endhash_clen_map.keys())[0]
+            return self._hash_block_map[blk_hash]
         # Get hashes of end-blocks with longest chain length
-        longest_clen = max(self.endhash_clen_map.values())
+        longest_clen = max(self._endhash_clen_map.values())
         block_hashes = [
-            k for k, v in self.endhash_clen_map.items() if v == longest_clen
+            k for k, v in self._endhash_clen_map.items() if v == longest_clen
         ]
         # Multiple chain with same length exist, 
         # use PoW ie. nonce to determine which to keep
-        def pow(block_hash):
-            return self._get_chain_pow(self.hash_block_map[block_hash])
         if len(block_hashes) != 1:
-            block_hashes = [ max(block_hashes, key=lambda bh: pow(bh)) ]
+            block_hashes = [ max(block_hashes, key=lambda bh: self._pow(bh)) ]
         # Remove all blocks beloging to forks
         blk_hash = block_hashes[0]
-        blk = self.hash_block_map[blk_hash]
+        blk = self._hash_block_map[blk_hash]
         new_hash_block_map = { blk_hash: blk }
         prev_hash = blk.header["prev_hash"]
         while prev_hash != None:
-            b = self.hash_block_map[prev_hash]
+            b = self._hash_block_map[prev_hash]
             new_hash_block_map[prev_hash] = b
             prev_hash = b.header["prev_hash"]
-        self.endhash_clen_map = { block_hashes[0]: longest_clen }
-        self.hash_block_map = new_hash_block_map
+        self._endhash_clen_map = { block_hashes[0]: longest_clen }
+        self._hash_block_map = new_hash_block_map
         return blk
 
+    @property
+    def hash_block_map(self):
+        return self._hash_block_map
+
+    @property
+    def endhash_clen_map(self):
+        return self._endhash_clen_map
 
 if __name__ == "__main__":
     blockchain = Blockchain.new()
@@ -170,15 +186,15 @@ if __name__ == "__main__":
             t = Transaction.new(sender_vk, receiver_vk, j+1, sender_sk, str(j))
             transactions.append(t.to_json())
         prev_block = blockchain.resolve()
-        header_hash = Block.hash_header(prev_block.header)
-        new_block = Block.new(transactions, header_hash)
-        hashes.append(new_block.header_hash)
+        prev_hash = Block.hash_header(prev_block.header)
+        new_block = Block.new(transactions, prev_hash)
+        hashes.append(Block.hash_header(new_block.header))
         blockchain.add(new_block)
-    prev_hash  = hashes[2]
+    prev_hash = hashes[2]
     for i in range(4):
         fork_block = Block.new(transactions, prev_hash)
         blockchain.add(fork_block)
-        prev_hash = fork_block.header_hash
+        prev_hash = Block.hash_header(fork_block.header)
     print("Pre-resolve: " + str(blockchain.endhash_clen_map))
     blockchain.resolve()
     print("Post-resolve: " + str(blockchain.endhash_clen_map))
