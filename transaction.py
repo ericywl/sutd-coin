@@ -4,25 +4,24 @@ import ecdsa, json, datetime, os
 class Transaction:
     SIG_LEN = 96
     KEY_LEN = 96
-    NONCE_LEN = 64
 
-    def __init__(self, sender, receiver, amount, comment="", timestamp=None,
-                 nonce=None, signature=None):
+    def __init__(self, sender, receiver, amount, nonce, comment="",
+                 timestamp=None, signature=None):
         self._sender = sender
         self._receiver = receiver
         self._amount = amount
         self._comment = comment
         self._timestamp = datetime.datetime.utcnow().timestamp() if \
             timestamp == None else timestamp
-        self._nonce = os.urandom(32).hex() if nonce == None else nonce
+        self._nonce = nonce
         self._signature = signature
 
     @classmethod
-    def new(cls, sender, receiver, amount, privkey, comment=""):
+    def new(cls, sender, receiver, amount, privkey, nonce, comment=""):
         # Instantiates object from passed values
         sender_str = sender.to_string().hex()
         receiver_str = receiver.to_string().hex()
-        trans = cls(sender_str, receiver_str, amount, comment)
+        trans = cls(sender_str, receiver_str, amount, nonce, comment)
         trans.sign(privkey.to_string().hex())
         if trans.validate():
             return trans
@@ -49,13 +48,47 @@ class Transaction:
         ]
         for f in fields:
             if not obj[f]:
-                raise Exception("JSON string is invalid.")
+                raise Exception("Transaction JSON string is invalid.")
         trans = cls(
-            obj["sender"], obj["receiver"], obj["amount"], obj["comment"],
-            obj["timestamp"], obj["nonce"], obj["signature"]
+            sender=obj["sender"],
+            receiver=obj["receiver"],
+            amount=obj["amount"],
+            nonce=obj["nonce"],
+            comment=obj["comment"],
+            timestamp=obj["timestamp"],
+            signature=obj["signature"]
         )
         if trans.validate():
             return trans
+
+    def validate(self):
+        # Validate transaction correctness.
+        # Can be called within from_json()
+        ## Validate sender public key
+        if type(self._sender) != str:
+            raise Exception("Sender public key not string.")
+        if len(self._sender) != Transaction.KEY_LEN:
+            raise Exception("Sender public key length is invalid.")
+        ## Validate receiver public key
+        if type(self._receiver) != str:
+            raise Exception("Receiver public key not string.")
+        if len(self._receiver) != Transaction.KEY_LEN:
+            raise Exception("Receiver public key length is invalid.")
+        ## Check transaction amount > 0
+        if self._amount <= 0:
+            raise Exception("Invalid transaction amount.")
+        ## Validate signature
+        if type(self._signature) != str:
+            raise Exception("Signature not string.")
+        if len(self._signature) != Transaction.SIG_LEN:
+            raise Exception("Signature length is invalid.")
+        ## Validate nonce
+        if type(self._nonce) != int:
+            raise Exception("Nonce not integer.")
+        ## Validate timestamp
+        if self._timestamp <= 0:
+            raise Exception("Invalid timestamp.")
+        return True
 
     def sign(self, privkey):
         # Sign object with private key passed
@@ -70,37 +103,6 @@ class Transaction:
         res = algo.verify_sig(sig, self.to_json(), self._sender)
         self._signature = sig
         return res
-
-    def validate(self):
-        # Validate transaction correctness.
-        # Can be called within from_json()
-        ## Validate sender public key
-        if type(self._sender) != str:
-            raise Exception("Sender public key not string.")
-        if len(self._sender) != Transaction.KEY_LEN:
-            raise Exception("Sender public key length invalid.")
-        ## Validate receiver public key
-        if type(self._receiver) != str:
-            raise Exception("Receiver public key not string.")
-        if len(self._receiver) != Transaction.KEY_LEN:
-            raise Exception("Receiver public key length invalid.")
-        ## Check transaction amount > 0
-        if self._amount <= 0:
-            raise Exception("Invalid transaction amount.")
-        ## Validate signature
-        if type(self._signature) != str:
-            raise Exception("Signature not string.")
-        if len(self._signature) != Transaction.SIG_LEN:
-            raise Exception("Signature length invalid.")
-        ## Validate nonce
-        if type(self._nonce) != str:
-            raise Exception("Nonce not string.")
-        if len(self._nonce) != Transaction.NONCE_LEN:
-            raise Exception("Nonce length invalid.")
-        ## Validate timestamp
-        if self._timestamp <= 0:
-            raise Exception("Invalid timestamp.")
-        return True
 
     def __str__(self):
         # String method for printing
@@ -158,7 +160,7 @@ if __name__ == "__main__":
     sender_vk = sender_sk.get_verifying_key()
     receiver_sk = ecdsa.SigningKey.generate()
     receiver_vk = receiver_sk.get_verifying_key()
-    t = Transaction.new(sender_vk, receiver_vk, 1, sender_sk, "hello world")
+    t = Transaction.new(sender_vk, receiver_vk, 1, sender_sk, 1, "hello world")
     t2 = Transaction.from_json(t.to_json())
     print(t)
     assert t2.verify()
