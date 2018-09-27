@@ -1,5 +1,9 @@
 import hashlib, json, ecdsa
 
+HASH_LEN = 64
+SIG_LEN = 96
+KEY_LEN = 96
+
 def hash1(item):
     return hashlib.sha256(item.encode()).hexdigest()
 
