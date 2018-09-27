@@ -22,6 +22,7 @@ class Block:
             "nonce": 0
         }
         while True:
+            # Compute hash to meet target
             header_hash = algo.hash2_dic(header)
             if header_hash < Block.TARGET:
                 return cls(header, transactions)
