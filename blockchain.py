@@ -1,7 +1,7 @@
 from block import *
 import algo
 
-import statistics, copy
+import statistics
 
 class Blockchain:
     def __init__(self, hash_block_map, endhash_clen_map):

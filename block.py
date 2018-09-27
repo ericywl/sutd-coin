@@ -2,7 +2,7 @@ from merkle_tree import *
 from transaction import *
 import algo
 
-import datetime, json, copy
+import datetime, json
 
 class Block:
     _zeroes = "000"
