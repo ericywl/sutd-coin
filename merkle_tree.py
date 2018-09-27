@@ -14,8 +14,8 @@ class MerkleTree:
             self.parent = None
             self.height = left.height + 1 if left != None else 0
 
+        # Return id string for test purposes
         def __str__(self):
-            # Return id string for test purposes
             return str(self.id)
 
     def __init__(self, items=[]):
@@ -26,8 +26,8 @@ class MerkleTree:
         self.root = None
         self.build()
 
+    # Create hash table from list of items
     def _hash_items(self, items):
-        # Create hash table from list of items
         # Items should be JSON strings
         res = {}
         for i in range(len(items)):
@@ -37,12 +37,12 @@ class MerkleTree:
             res[item] = item_node
         return res
 
+    # Hash the concatenation of hashes in left and right node
     def _concat_hash(self, left, right):
-        # Hash the concatenation of hashes in left and right node
         return algo.hash1(left.hash_val + right.hash_val)
 
+    # Add entries to tree
     def add(self, entry):
-        # Add entries to tree
         entry_hash = algo.hash1(entry)
         entry_node = self.Node(len(self.leaves_map) + 1, None, None, entry_hash)
         self.leaves_map[entry] = entry_node
@@ -50,8 +50,8 @@ class MerkleTree:
         self.root = None
         self.is_built = False
 
+    # Build tree computing new root
     def build(self):
-        # Build tree computing new root
         leaves = list(self.leaves_map.values())
         leaves_len = len(leaves)
         if leaves_len <= 0:
@@ -85,8 +85,8 @@ class MerkleTree:
                 dq.append(node)
         self.is_built = True
 
+    # Get membership proof for entry
     def get_proof(self, entry):
-        # Get membership proof for entry
         if not self.is_built:
             self.build()
         proof = []
@@ -100,15 +100,15 @@ class MerkleTree:
             node = parent
         return proof
 
+    # Return the current root
     def get_root(self):
-        # Return the current root
         if not self.is_built:
             self.build()
         return self.root.hash_val if self.root else None
 
 
+# Verifies proof for entry and given root. Returns boolean.
 def verify_proof(entry, proof, root):
-    # Verifies proof for entry and given root. Returns boolean.
     temp = algo.hash1(entry)
     for p, d in proof:
         if d == "right":
@@ -126,12 +126,12 @@ if __name__ == "__main__":
     chars = string.ascii_letters + string.digits
     items = []
     tree = MerkleTree()
-    for i in range(random.randint(100, 1000)):
+    for i in range(random.randint(10, 100)):
         sender_sk = ecdsa.SigningKey.generate()
         sender_vk = sender_sk.get_verifying_key()
         receiver_sk = ecdsa.SigningKey.generate()
         receiver_vk = receiver_sk.get_verifying_key()
-        t = Transaction.new(sender_vk, receiver_vk, i+1, sender_sk, "hello world")
+        t = Transaction.new(sender_vk, receiver_vk, 10, sender_sk, i, "hello world")
         tree.add(t.to_json())
         items.append(t.to_json())
     root = tree.get_root()
