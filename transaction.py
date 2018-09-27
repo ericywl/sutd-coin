@@ -2,9 +2,6 @@ import algo
 import ecdsa, json, datetime, os
 
 class Transaction:
-    SIG_LEN = 96
-    KEY_LEN = 96
-
     def __init__(self, sender, receiver, amount, nonce, comment="",
                  timestamp=None, signature=None):
         self._sender = sender
@@ -46,9 +43,8 @@ class Transaction:
             "sender", "receiver", "amount", "comment",
             "timestamp", "nonce", "signature"
         ]
-        for f in fields:
-            if not obj[f]:
-                raise Exception("Transaction JSON string is invalid.")
+        if all(elem in obj.values() for elem in fields):
+            raise Exception("Transaction JSON string is invalid.")
         trans = cls(
             sender=obj["sender"],
             receiver=obj["receiver"],
@@ -67,12 +63,12 @@ class Transaction:
         ## Validate sender public key
         if type(self._sender) != str:
             raise Exception("Sender public key not string.")
-        if len(self._sender) != Transaction.KEY_LEN:
+        if len(self._sender) != algo.KEY_LEN:
             raise Exception("Sender public key length is invalid.")
         ## Validate receiver public key
         if type(self._receiver) != str:
             raise Exception("Receiver public key not string.")
-        if len(self._receiver) != Transaction.KEY_LEN:
+        if len(self._receiver) != algo.KEY_LEN:
             raise Exception("Receiver public key length is invalid.")
         ## Check transaction amount > 0
         if self._amount <= 0:
@@ -80,14 +76,18 @@ class Transaction:
         ## Validate signature
         if type(self._signature) != str:
             raise Exception("Signature not string.")
-        if len(self._signature) != Transaction.SIG_LEN:
+        if len(self._signature) != algo.SIG_LEN:
             raise Exception("Signature length is invalid.")
         ## Validate nonce
         if type(self._nonce) != int:
             raise Exception("Nonce not integer.")
+        if self._nonce < 0:
+            raise Exception("Nonce cannot be negative.")
         ## Validate timestamp
+        if type(self._timestamp) != float:
+            raise Exception("Timestamp not float.")
         if self._timestamp <= 0:
-            raise Exception("Invalid timestamp.")
+            raise Exception("Invalid timestamp value.")
         return True
 
     def sign(self, privkey):
