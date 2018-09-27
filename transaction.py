@@ -13,9 +13,9 @@ class Transaction:
         self._nonce = nonce
         self._signature = signature
 
+    # Instantiates object from passed values
     @classmethod
     def new(cls, sender, receiver, amount, privkey, nonce, comment=""):
-        # Instantiates object from passed values
         sender_str = sender.to_string().hex()
         receiver_str = receiver.to_string().hex()
         trans = cls(sender_str, receiver_str, amount, nonce, comment)
@@ -23,8 +23,8 @@ class Transaction:
         if trans.validate():
             return trans
 
+    # Serializes object to JSON string
     def to_json(self):
-        # Serializes object to JSON string
         return json.dumps({
             "sender": self._sender,
             "receiver": self._receiver,
@@ -35,9 +35,9 @@ class Transaction:
             "signature": self._signature
         })
 
+    # Instantiates/Deserializes object from JSON string
     @classmethod
     def from_json(cls, json_str):
-        # Instantiates/Deserializes object from JSON string
         obj = json.loads(json_str)
         fields = [
             "sender", "receiver", "amount", "comment",
@@ -57,46 +57,46 @@ class Transaction:
         if trans.validate():
             return trans
 
+    # Validate transaction correctness.
     def validate(self):
-        # Validate transaction correctness.
         # Can be called within from_json()
-        ## Validate sender public key
+        # Validate sender public key
         if type(self._sender) != str:
             raise Exception("Sender public key not string.")
         if len(self._sender) != algo.KEY_LEN:
             raise Exception("Sender public key length is invalid.")
-        ## Validate receiver public key
+        # Validate receiver public key
         if type(self._receiver) != str:
             raise Exception("Receiver public key not string.")
         if len(self._receiver) != algo.KEY_LEN:
             raise Exception("Receiver public key length is invalid.")
-        ## Check transaction amount > 0
+        # Check transaction amount > 0
         if self._amount <= 0:
             raise Exception("Invalid transaction amount.")
-        ## Validate signature
+        # Validate signature
         if type(self._signature) != str:
             raise Exception("Signature not string.")
         if len(self._signature) != algo.SIG_LEN:
             raise Exception("Signature length is invalid.")
-        ## Validate nonce
+        # Validate nonce
         if type(self._nonce) != int:
             raise Exception("Nonce not integer.")
         if self._nonce < 0:
             raise Exception("Nonce cannot be negative.")
-        ## Validate timestamp
+        # Validate timestamp
         if type(self._timestamp) != float:
             raise Exception("Timestamp not float.")
         if self._timestamp <= 0:
             raise Exception("Invalid timestamp value.")
         return True
 
+    # Sign object with private key passed
     def sign(self, privkey):
-        # Sign object with private key passed
-        # That can be called within new()
+        # Can be called within new()
         self._signature = algo.sign(self.to_json(), privkey)
 
+    # Verify signature
     def verify(self):
-        # Verify signature
         # Remove signature before verifying
         sig = self._signature
         self._signature = None
@@ -104,8 +104,8 @@ class Transaction:
         self._signature = sig
         return res
 
+    # String method for printing
     def __str__(self):
-        # String method for printing
         string = "Transaction Information\n"
         string += "============================\n"
         string += "Sender: {}\n".format(self._sender)
@@ -120,8 +120,8 @@ class Transaction:
         string += "Signature: {}".format(temp_sig)
         return string
 
+    # Check whether transactions are the same
     def __eq__(self, other):
-        # Check whether transactions are the same
         j1 = self.to_json()
         j2 = other.to_json()
         return j1 == j2
