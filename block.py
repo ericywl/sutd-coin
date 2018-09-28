@@ -135,10 +135,12 @@ def generate_transactions(n):
     transactions = []
     for j in range(n):
         sender_sk = ecdsa.SigningKey.generate()
-        sender_vk = sender_sk.get_verifying_key()
+        sender_privkey = sender_sk.to_string().hex()
+        sender_pubkey = sender_sk.get_verifying_key().to_string().hex()
         receiver_sk = ecdsa.SigningKey.generate()
-        receiver_vk = receiver_sk.get_verifying_key()
-        t = Transaction.new(sender_vk, receiver_vk, 1, sender_sk, j, str(j))
+        receiver_pubkey = receiver_sk.get_verifying_key().to_string().hex()
+        t = Transaction.new(sender_pubkey, receiver_pubkey, 1,
+                            sender_privkey, j, str(j))
         transactions.append(t.to_json())
     return transactions
 

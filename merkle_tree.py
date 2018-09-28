@@ -123,17 +123,14 @@ def verify_proof(entry, proof, root):
 
 if __name__ == "__main__":
     from transaction import *
+    from block import generate_transactions
     chars = string.ascii_letters + string.digits
     items = []
     tree = MerkleTree()
-    for i in range(random.randint(10, 100)):
-        sender_sk = ecdsa.SigningKey.generate()
-        sender_vk = sender_sk.get_verifying_key()
-        receiver_sk = ecdsa.SigningKey.generate()
-        receiver_vk = receiver_sk.get_verifying_key()
-        t = Transaction.new(sender_vk, receiver_vk, 10, sender_sk, i, "hello world")
-        tree.add(t.to_json())
-        items.append(t.to_json())
+    transactions = generate_transactions(random.randint(10, 100))
+    for t_json in transactions:
+        tree.add(t_json)
+        items.append(t_json)
     root = tree.get_root()
     entry = items[random.randint(0, len(items)-1)]
     proof = tree.get_proof(entry)
