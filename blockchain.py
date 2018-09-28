@@ -160,17 +160,6 @@ class Blockchain:
         return self._endhash_clen_map
 
 
-def generate_transactions(n):
-    transactions = []
-    for j in range(n):
-        sender_sk = ecdsa.SigningKey.generate()
-        sender_vk = sender_sk.get_verifying_key()
-        receiver_sk = ecdsa.SigningKey.generate()
-        receiver_vk = receiver_sk.get_verifying_key()
-        t = Transaction.new(sender_vk, receiver_vk, 1, sender_sk, j, str(j))
-        transactions.append(t.to_json())
-    return transactions
-
 def main():
     blockchain = Blockchain.new()
     hashes = []
