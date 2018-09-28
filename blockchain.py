@@ -67,7 +67,7 @@ class Blockchain:
         return block.header["timestamp"] > statistics.median(prev_timestamps)
 
     # Check if block contains transactions that are already in chain
-    def _check_duplicate_trans(self, blk_transactions):
+    def _check_trans_in_chain(self, blk_transactions):
         trans_set = set(self.transactions)
         blk_trans_set = set(blk_transactions)
         num_b_transactions = len(blk_trans_set)
@@ -88,8 +88,8 @@ class Blockchain:
         if not self._check_prev_exist(block.header["prev_hash"]):
             raise Exception("Previous block does not exist.")
         ## Check transactions in blockchain not reused in block
-        if not self._check_duplicate_trans(block.transactions):
-            raise Exception("Duplicate transaction found in blockchain.")
+        if not self._check_trans_in_chain(block.transactions):
+            raise Exception("Transaction is already in the blockchain.")
         ## Check timestamp in block header
         if not self._check_timestamp(block):
             raise Exception("Invalid timestamp in block.")
