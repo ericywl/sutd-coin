@@ -6,19 +6,22 @@ import datetime, json
 
 class Block:
     _zeroes = "0000"
-    _interm = "29"
+    _interm = "ff"
     TARGET = _zeroes + _interm + (64 - len(_zeroes) - len(_interm)) * "f"
 
-    def __init__(self, header, transactions=[]):
+    def __init__(self, header, transactions=[], account_map={}):
         self._header = header
         self._transactions = transactions
+        self._account_map = account_map
 
     @classmethod
-    def new(cls, prev_hash, transactions=[]):
+    def new(cls, prev_hash, transactions=[], account_map={}):
         root = MerkleTree(transactions).get_root()
+        accmap_hash = algo.hash2_dic(account_map)
         header = {
             "prev_hash": prev_hash,
             "root": root,
+            "accmap_hash": accmap_hash,
             "timestamp": datetime.datetime.utcnow().timestamp(),
             "nonce": 0
         }
@@ -34,7 +37,7 @@ class Block:
         header = {
             "prev_hash": algo.HASH_LEN * '0',
             "root": algo.HASH_LEN * 'f',
-            "timestamp": 1337,
+            "timestamp": 1337.0,
             "nonce": 0
         }
         return cls(header)
@@ -49,14 +52,26 @@ class Block:
     def from_json(cls, json_str):
         obj = json.loads(json_str)
         fields = ["header", "transactions"]
-        if all(elem in obj.values() for elem in fields):
+        if not all(elem in obj.keys() for elem in fields):
             raise Exception("Block JSON string is invalid.")
         header_fields = ["prev_hash", "root", "timestamp", "nonce"]
-        if all(elem in obj["header"].values() for elem in header_fields):
+        if not all(elem in obj["header"].keys() for elem in header_fields):
             raise Exception("Block JSON header is invalid.")
         block = cls(obj["header"], obj["transactions"])
         if block.validate():
             return block
+
+    # Validate account map format
+    def _validate_account_map(self):
+        fields = [ "nonce", "balance" ]
+        for pubkey, dic in self._account_map:
+            if type(pubkey) != str or len(pubkey) != algo.KEY_LEN:
+                return False
+            if not all(elem in dic.keys() for elem in fields):
+                return False
+            if not all(type(dic[elem]) == int for elem in fields):
+                return False
+        return True
 
     # Validate block
     def validate(self):
@@ -73,6 +88,11 @@ class Block:
             raise Exception("Merkle tree root hash not string.")
         if len(self._header["root"]) != algo.HASH_LEN:
             raise Exception("Merkle tree root hash length is invalid.")
+        # Check account map hash
+        if type(self._header["accmap_hash"]) != str:
+            raise Exception("Account map hash not string.")
+        if len(self._header["accmap_hash"]) != algo.HASH_LEN:
+            raise Exception("Account map hash length is invalid.")
         # Check timestamp
         if type(self._header["timestamp"]) != float:
             raise Exception("Timestamp not float.")
@@ -86,12 +106,22 @@ class Block:
         # Check transactions
         if type(self._transactions) != list:
             raise Exception("Transactions not list.")
+        # Check account map
+        if type(self._account_map) != dict:
+            raise Exception("Account map not dictionary.")
+        if not self._validate_account_map():
+            raise Exception("Account map is invalid.")
         return True
 
     # Compare calculated root with stored root
     def _check_root(self):
         calc_root = MerkleTree(self._transactions).get_root()
         return calc_root == self._header["root"]
+
+    # Compare calculated account map hash with stored account map hash
+    def _check_accmap_hash(self):
+        calc_accmap_hash = algo.hash2_dic(self._account_map)
+        return calc_accmap_hash == self._header["accmap_hash"]
 
     # Verify all transactions
     def _verify_transactions(self):
@@ -107,14 +137,24 @@ class Block:
         return len(transactions_set) == len(self._transactions)
 
     def verify(self):
+        # Genesis block special case
+        if self == Block.get_genesis():
+            return True
         # Check Merkle Tree root of block
         if not self._check_root():
             raise Exception("Invalid root in block.")
+        # Check account map hash
+        if not self._check_accmap_hash():
+            raise Exception("Invalid account map hash in block.")
         # Verify transactions in block
         if not self._verify_transactions():
             raise Exception("Some transactions are invalid.")
         if not self._check_duplicate_trans():
             raise Exception("Duplicate transactions found.")
+        # Check header hash is smaller than Block.TARGET
+        comp_hash = algo.hash2_dic(self._header)
+        if comp_hash >= Block.TARGET:
+            raise Exception("Invalid proof of work.")
         return True
 
     def __eq__(self, other):
@@ -147,8 +187,12 @@ def generate_transactions(n):
 if __name__ == "__main__":
     import os, time
     transactions = generate_transactions(20)
+    acc_map = {
+        os.urandom(32).hex(): { "nonce": 0, "balance": 0 },
+        os.urandom(32).hex(): { "nonce": 16, "balance": 120 }
+    }
     start = time.time()
-    b1 = Block.new(os.urandom(32).hex(), transactions)
+    b1 = Block.new(os.urandom(32).hex(), transactions, acc_map)
     elapsed = time.time() - start
     print(elapsed)
     b2 = Block.from_json(b1.to_json())
