@@ -85,6 +85,11 @@ class Block:
                 return False
         return True
 
+    # Check if transactions have duplicates
+    def _check_duplicate_trans(self):
+        transactions_set = set(self._transactions)
+        return len(transactions_set) == len(self._transactions)
+
     def verify(self):
         # Check Merkle Tree root of block
         if not self._check_root():
@@ -92,6 +97,8 @@ class Block:
         # Verify transactions in block
         if not self._verify_transactions():
             raise Exception("Some transactions are invalid.")
+        if not self._check_duplicate_trans():
+            raise Exception("Duplicate transactions found.")
         return True
 
     def __eq__(self, other):
