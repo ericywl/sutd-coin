@@ -2,14 +2,12 @@ import algo
 import ecdsa, json, datetime, os
 
 class Transaction:
-    def __init__(self, sender, receiver, amount, nonce, comment="",
-                 timestamp=None, signature=None):
+    def __init__(self, sender, receiver, amount, nonce,
+                 comment="", signature=None):
         self._sender = sender
         self._receiver = receiver
         self._amount = amount
         self._comment = comment
-        self._timestamp = datetime.datetime.utcnow().timestamp() if \
-            timestamp == None else timestamp
         self._nonce = nonce
         self._signature = signature
 
@@ -30,7 +28,6 @@ class Transaction:
             "receiver": self._receiver,
             "amount": self._amount,
             "comment": self._comment,
-            "timestamp": self._timestamp,
             "nonce": self._nonce,
             "signature": self._signature
         })
@@ -41,9 +38,9 @@ class Transaction:
         obj = json.loads(json_str)
         fields = [
             "sender", "receiver", "amount", "comment",
-            "timestamp", "nonce", "signature"
+            "nonce", "signature"
         ]
-        if all(elem in obj.values() for elem in fields):
+        if not all(elem in obj.keys() for elem in fields):
             raise Exception("Transaction JSON string is invalid.")
         trans = cls(
             sender=obj["sender"],
@@ -51,7 +48,6 @@ class Transaction:
             amount=obj["amount"],
             nonce=obj["nonce"],
             comment=obj["comment"],
-            timestamp=obj["timestamp"],
             signature=obj["signature"]
         )
         if trans.validate():
@@ -85,11 +81,6 @@ class Transaction:
             raise Exception("Transaction nonce not integer.")
         if self._nonce < 0:
             raise Exception("Transaction nonce cannot be negative.")
-        # Validate timestamp
-        if type(self._timestamp) != float:
-            raise Exception("Transaction timestamp not float.")
-        if self._timestamp <= 0:
-            raise Exception("Invalid transaction timestamp value.")
         return True
 
     # Sign object with private key passed
@@ -113,8 +104,6 @@ class Transaction:
         string += "Sender: {}\n".format(self._sender)
         string += "Receiver: {}\n".format(self._receiver)
         string += "Amount: {}\n".format(self._amount)
-        dt_obj = datetime.datetime.fromtimestamp(self._timestamp)
-        string += "Timestamp: {} UTC\n".format(dt_obj)
         temp_comment = "N/A" if self._comment == "" else self._comment
         string += "Comment: {}\n".format(temp_comment)
         string += "Nonce: {}\n".format(self._nonce)
@@ -139,10 +128,6 @@ class Transaction:
     @property
     def amount(self):
         return self._amount
-
-    @property
-    def timestamp(self):
-        return self._timestamp
 
     @property
     def comment(self):
