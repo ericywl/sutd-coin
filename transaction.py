@@ -16,10 +16,10 @@ class Transaction:
     # Instantiates object from passed values
     @classmethod
     def new(cls, sender, receiver, amount, privkey, nonce, comment=""):
-        sender_str = sender.to_string().hex()
-        receiver_str = receiver.to_string().hex()
+        sender_str = sender
+        receiver_str = receiver
         trans = cls(sender_str, receiver_str, amount, nonce, comment)
-        trans.sign(privkey.to_string().hex())
+        trans.sign(privkey)
         if trans.validate():
             return trans
 
@@ -71,23 +71,25 @@ class Transaction:
         if len(self._receiver) != algo.KEY_LEN:
             raise Exception("Receiver public key length is invalid.")
         # Check transaction amount > 0
+        if type(self._amount) != int:
+            raise Exception("Transaction amount not integer.")
         if self._amount <= 0:
             raise Exception("Invalid transaction amount.")
         # Validate signature
         if type(self._signature) != str:
-            raise Exception("Signature not string.")
+            raise Exception("Transaction signature not string.")
         if len(self._signature) != algo.SIG_LEN:
-            raise Exception("Signature length is invalid.")
+            raise Exception("Transaction signature length is invalid.")
         # Validate nonce
         if type(self._nonce) != int:
-            raise Exception("Nonce not integer.")
+            raise Exception("Transaction nonce not integer.")
         if self._nonce < 0:
-            raise Exception("Nonce cannot be negative.")
+            raise Exception("Transaction nonce cannot be negative.")
         # Validate timestamp
         if type(self._timestamp) != float:
-            raise Exception("Timestamp not float.")
+            raise Exception("Transaction timestamp not float.")
         if self._timestamp <= 0:
-            raise Exception("Invalid timestamp value.")
+            raise Exception("Invalid transaction timestamp value.")
         return True
 
     # Sign object with private key passed
@@ -157,10 +159,12 @@ class Transaction:
 
 if __name__ == "__main__":
     sender_sk = ecdsa.SigningKey.generate()
-    sender_vk = sender_sk.get_verifying_key()
+    sender_privkey = sender_sk.to_string().hex()
+    sender_pubkey = sender_sk.get_verifying_key().to_string().hex()
     receiver_sk = ecdsa.SigningKey.generate()
-    receiver_vk = receiver_sk.get_verifying_key()
-    t = Transaction.new(sender_vk, receiver_vk, 1, sender_sk, 1, "hello world")
+    receiver_pubkey = receiver_sk.get_verifying_key().to_string().hex()
+    t = Transaction.new(sender_pubkey, receiver_pubkey, 1, sender_privkey,
+                        1, "hello world")
     t2 = Transaction.from_json(t.to_json())
     print(t)
     assert t2.verify()
