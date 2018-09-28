@@ -9,9 +9,8 @@ class Blockchain:
         self._endhash_clen_map = endhash_clen_map
 
     @classmethod
-    def new(cls, genesis=None):
-        if not genesis:
-            genesis = Block.new(None)
+    def new(cls):
+        genesis = Block.get_genesis()
         genesis_hash = algo.hash2_dic(genesis.header)
         hash_block_map = { genesis_hash: genesis }
         # Keep track of end blocks and chain length
@@ -60,7 +59,8 @@ class Blockchain:
     def _check_timestamp(self, block):
         prev_timestamps = []
         prev_hash = block.header["prev_hash"]
-        while prev_hash != None and len(prev_timestamps) < 11:
+        genesis_prev_hash = algo.HASH_LEN * '0'
+        while prev_hash != genesis_prev_hash and len(prev_timestamps) < 11:
             b = self._hash_block_map[prev_hash]
             prev_timestamps.append(b.header["timestamp"])
             prev_hash = b.header["prev_hash"]
