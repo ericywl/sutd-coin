@@ -5,8 +5,9 @@ import algo
 import datetime, json
 
 class Block:
-    _zeroes = "000"
-    TARGET = _zeroes + (64 - len(_zeroes)) * "f"
+    _zeroes = "0000"
+    _interm = "29"
+    TARGET = _zeroes + _interm + (64 - len(_zeroes) - len(_interm)) * "f"
 
     def __init__(self, header, transactions=[]):
         self._header = header
@@ -114,9 +115,25 @@ class Block:
     def header(self):
         return self._header
 
+
+def generate_transactions(n):
+    transactions = []
+    for j in range(n):
+        sender_sk = ecdsa.SigningKey.generate()
+        sender_vk = sender_sk.get_verifying_key()
+        receiver_sk = ecdsa.SigningKey.generate()
+        receiver_vk = receiver_sk.get_verifying_key()
+        t = Transaction.new(sender_vk, receiver_vk, 1, sender_sk, j, str(j))
+        transactions.append(t.to_json())
+    return transactions
+
 if __name__ == "__main__":
-    import os
-    b1 = Block.new(os.urandom(32).hex())
+    import os, time
+    transactions = generate_transactions(20)
+    start = time.time()
+    b1 = Block.new(os.urandom(32).hex(), transactions)
+    elapsed = time.time() - start
+    print(elapsed)
     b2 = Block.from_json(b1.to_json())
     print(b1 == b2)
 
