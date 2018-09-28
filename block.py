@@ -29,6 +29,16 @@ class Block:
                 return cls(header, transactions)
             header["nonce"] += 1
 
+    @classmethod
+    def get_genesis(cls):
+        header = {
+            "prev_hash": algo.HASH_LEN * '0',
+            "root": algo.HASH_LEN * 'f',
+            "timestamp": 1337,
+            "nonce": 0
+        }
+        return cls(header)
+
     def to_json(self):
         return json.dumps({
             "header": self._header,
@@ -58,6 +68,11 @@ class Block:
             raise Exception("Previous header hash not string.")
         if len(self._header["prev_hash"]) != algo.HASH_LEN:
             raise Exception("Previous header hash length is invalid.")
+        # Check Merkle tree root
+        if type(self._header["root"]) != str:
+            raise Exception("Merkle tree root hash not string.")
+        if len(self._header["root"]) != algo.HASH_LEN:
+            raise Exception("Merkle tree root hash length is invalid.")
         # Check timestamp
         if type(self._header["timestamp"]) != float:
             raise Exception("Timestamp not float.")
