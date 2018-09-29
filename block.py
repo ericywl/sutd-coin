@@ -6,7 +6,7 @@ import datetime, json
 
 class Block:
     _zeroes = "0000"
-    _interm = "ff"
+    _interm = "55"
     TARGET = _zeroes + _interm + (64 - len(_zeroes) - len(_interm)) * "f"
 
     def __init__(self, header, transactions=[]):
@@ -49,10 +49,10 @@ class Block:
     def from_json(cls, json_str):
         obj = json.loads(json_str)
         fields = ["header", "transactions"]
-        if all(elem in obj.values() for elem in fields):
+        if not all(elem in obj.keys() for elem in fields):
             raise Exception("Block JSON string is invalid.")
         header_fields = ["prev_hash", "root", "timestamp", "nonce"]
-        if all(elem in obj["header"].values() for elem in header_fields):
+        if not all(elem in obj["header"].keys() for elem in header_fields):
             raise Exception("Block JSON header is invalid.")
         block = cls(obj["header"], obj["transactions"])
         if block.validate():
@@ -107,6 +107,8 @@ class Block:
         return len(transactions_set) == len(self._transactions)
 
     def verify(self):
+        if self == Block.get_genesis():
+            return True
         # Check Merkle Tree root of block
         if not self._check_root():
             raise Exception("Invalid root in block.")
@@ -146,12 +148,13 @@ def generate_transactions(n):
 
 if __name__ == "__main__":
     import os, time
+    print("Generating transactions...")
     transactions = generate_transactions(20)
     start = time.time()
     b1 = Block.new(os.urandom(32).hex(), transactions)
     elapsed = time.time() - start
-    print(elapsed)
+    print("Time to make new block: {}s".format(elapsed))
     b2 = Block.from_json(b1.to_json())
-    print(b1 == b2)
+    print("Testing from_json and to_json: {}".format(b1 == b2))
 
 
