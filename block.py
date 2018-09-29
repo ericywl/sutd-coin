@@ -2,7 +2,7 @@ from merkle_tree import *
 from transaction import *
 import algo
 
-import datetime, json
+import datetime, json, copy
 
 class Block:
     _zeroes = "0000"
@@ -126,11 +126,11 @@ class Block:
 
     @property
     def transactions(self):
-        return self._transactions
+        return copy.deepcopy(self._transactions)
 
     @property
     def header(self):
-        return self._header
+        return copy.deepcopy(self._header)
 
 
 def generate_transactions(n):

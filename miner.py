@@ -160,7 +160,7 @@ class Miner:
 
     @property
     def transaction_pool(self):
-        return self._transaction_pool
+        return copy.deepcopy(self._transaction_pool)
 
 
 def create_miner_network(n):

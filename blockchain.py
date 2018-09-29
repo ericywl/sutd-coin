@@ -151,23 +151,19 @@ class Blockchain:
 
     @property
     def blocks(self):
-        return list(self._hash_block_map.values())
+        return copy.deepcopy(list(self._hash_block_map.values()))
 
     @property
     def transactions(self):
-        res = []
-        for b in self.blocks:
-            for t in b.transactions:
-                res.append(t)
-        return res
+        return [t for t in b.transactions for b in self.blocks]
 
     @property
     def hash_block_map(self):
-        return self._hash_block_map
+        return copy.deepcopy(self._hash_block_map)
 
     @property
     def endhash_clen_map(self):
-        return self._endhash_clen_map
+        return copy.deepcopy(self._endhash_clen_map)
 
 
 def main():
