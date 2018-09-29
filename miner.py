@@ -11,7 +11,8 @@ class Miner:
     def __init__(self, privkey, pubkey):
         self._privkey = privkey
         self._pubkey = pubkey
-        self._balance = 0
+        self._total_balance = 0
+        self._pending_balance = 0
         self._nonce = 0
         self._blockchain = Blockchain.new()
         self._transaction_pool = set()
@@ -35,7 +36,7 @@ class Miner:
     # Create a new transaction
     def create_transaction(self, receiver, amount, comment):
         try:
-            if amount > self._balance:
+            if amount > self.available_balance:
                 raise Exception("Amount is higher than available balance.")
             trans = Transaction.new(sender=self._pubkey, receiver=receiver,
                                     amount=amount, privkey=self._privkey,
@@ -44,6 +45,8 @@ class Miner:
             print("TRANS_CREATION_FAIL: {}".format(repr(e)))
             return None
         else:
+            self._nonce += 1
+            self._pending_balance += amount
             trans_json = trans.to_json()
             self.add_transaction(trans_json)
             self._broadcast_transaction(trans_json)
@@ -69,15 +72,22 @@ class Miner:
             p.add_block(block_json)
 
     # Create a new block
-    def create_block(self):
+    def create_block(self, n_trans=None):
         # Resolve blockchain to get last block
         last_blk = self._blockchain.resolve()
         # Remove blockchain transactions from pool
         added_transactions = set(self._blockchain.transactions)
         remaining_transactions = self._transaction_pool - added_transactions
+        if len(remaining_transactions) == 0:
+            print("BLK_CREATION_FAIL: No more transactions left.")
+            return None
         # Get a set of random transactions from pool
-        max_n = min(Miner.MAX_TRANS, len(remaining_transactions))
-        n_trans = random.randint(1, max_n)
+        if n_trans == None:
+            max_n = min(Miner.MAX_TRANS, len(remaining_transactions))
+            n_trans = random.randint(1, max_n)
+        if n_trans <= 0:
+            print("BLK_CREATION_FAIL: Num. transactions less than 1.")
+            return None
         gathered_transactions = random.sample(remaining_transactions, n_trans)
         # Verify all transactions in set
         for t_json in gathered_transactions:
@@ -95,11 +105,15 @@ class Miner:
             block_json = block.to_json()
             self.add_block(block_json)
             self._broadcast_block(block_json)
-            self._balance += 100
+            self._total_balance += 100
             return block
 
     # Recompute miner's balance using transactions in added block
-    def _compute_balance(self):
+    def _compute_balance(self, block):
+        for t_json in block.transactions:
+            t = Transaction.from_json(t_json)
+            if t.receiver == self._pubkey:
+                self._total_balance += t.amount
 
     # Add new block to the blockchain
     def add_block(self, block_json):
@@ -110,7 +124,7 @@ class Miner:
             print("BLK_ADD_FAIL: {}".format(repr(e)))
         else:
             # Block successfully added to blockchain
-            self._compute_balance(block.transactions)
+            self._compute_balance(block)
 
     # Add miner to peer list
     def add_peer(self, miner):
@@ -125,23 +139,20 @@ class Miner:
         return self._privkey
 
     @property
-    def balance(self):
-        return self._balance
+    def total_balance(self):
+        return self._total_balance
 
-    def deposit(self, value):
-        if value > 0:
-            self._balance += value
+    @property
+    def pending_balance(self):
+        return self._pending_balance
 
-    def withdraw(self, value):
-        if value > 0:
-            self._balance -= value
+    @property
+    def available_balance(self):
+        return self._total_balance - self._pending_balance
 
     @property
     def nonce(self):
         return self._nonce
-
-    def increment_nonce(self):
-        self._nonce += 1
 
     @property
     def blockchain(self):
@@ -162,8 +173,16 @@ def create_miner_network(n):
                 m1.add_peer(m2)
     return miners
 
+def print_balance(miners):
+    print("===================================================")
+    for j in range(len(miners)):
+        print("(Miner {3}) Total: {0}, Pending: {1}, Available: {2}"\
+          .format(miners[j].total_balance, miners[j].pending_balance,
+                  miners[j].available_balance, j))
+    print()
+
 if __name__ == "__main__":
-    num_miners = 5
+    num_miners = 3
     miners = create_miner_network(num_miners)
     creator_sk = ecdsa.SigningKey.generate()
     creator_privkey = creator_sk.to_string().hex()
@@ -173,28 +192,37 @@ if __name__ == "__main__":
     miners[0].create_transaction(receiver=miners[1].pubkey, amount=100,
                                  comment="cant spend")
     # Initialize coins
-    num_trans = 20
-    print("(Creator) Sending {} transactions to Miner 0...".format(num_trans))
-    for i in range(num_trans):
+    n1 = 10
+    amt1 = 10
+    print("(Creator) Sending {0} transactions of amount {1} to Miner 0..."\
+            .format(n1, amt1))
+    for i in range(n1):
         t = Transaction.new(sender=creator_pubkey, receiver=miners[0].pubkey,
-                            amount=10, privkey=creator_privkey,
+                            amount=amt1, privkey=creator_privkey,
                             nonce=i, comment="init")
         for m in miners:
             m.add_transaction(t.to_json())
+    print_balance(miners)
     # Mining initial block
-    print("(Miner 0) Mining...")
-    miners[0].create_block()
+    num_trans = 10
+    print("(Miner 0) Mining with {} transactions...".format(num_trans))
+    miners[0].create_block(num_trans)
+    print_balance(miners)
     # Blockchain of Miner 1 is updated because Miner 0 broadcasted block
-    print("(Miner 1) Blockchain:{}"\
+    print("(Miner 1) Blockchain: {}"\
             .format(miners[1].blockchain.endhash_clen_map))
     # Balance is updated with 100 from mining and some more from creator
-    print("(Miner 0) Total balance: {}".format(miners[0].total_balance))
-    print("(Miner 0) Sending {} transactions to random miners..."\
-            .format(num_trans))
-    for i in range(num_trans):
+    # Sending transactions to others
+    n2 = 10
+    amt2 = 5
+    print(("(Miner 0) Sending {0} transactions with amount {1} "
+           "to random miners...").format(n2, amt2))
+    for i in range(n2):
         index = random.randint(1, num_miners - 1)
         miners[0].create_transaction(receiver=miners[index].pubkey,
-                                     amount=5, comment="random")
-    # Miner 1 has all the transactions sent previously
-    print("(Miner 1) Num. transactions: {}"\
-            .format(len(miners[1].transaction_pool)))
+                                     amount=amt2, comment="random")
+    print_balance(miners)
+    for i in range(1, len(miners)):
+        print("(Miner {0}) Mining with {1} transactions...".format(i, num_trans))
+        miners[i].create_block(num_trans)
+        print_balance(miners)
