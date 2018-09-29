@@ -21,7 +21,7 @@ class Blockchain:
     def _get_chain_length(self, block):
         prev_hash = block.header["prev_hash"]
         chain_len = 0
-        while prev_hash != algo.hash2_dic(Block.get_genesis().header):
+        while prev_hash != Block.get_genesis().header["prev_hash"]:
             for b in self._hash_block_map.values():
                 if prev_hash == algo.hash2_dic(b.header):
                     prev_hash = b.header["prev_hash"]
@@ -33,7 +33,7 @@ class Blockchain:
     def _get_chain_pow(self, block):
         prev_hash = block.header["prev_hash"]
         chain_pow = block.header["nonce"]
-        while prev_hash != algo.hash2_dic(Block.get_genesis().header):
+        while prev_hash != Block.get_genesis().header["prev_hash"]:
             for b in self._hash_block_map.values():
                 if prev_hash == algo.hash2_dic(b.header):
                     prev_hash = b.header["prev_hash"]
@@ -141,7 +141,7 @@ class Blockchain:
         blk = self._hash_block_map[blk_hash]
         new_hash_block_map = { blk_hash: blk }
         prev_hash = blk.header["prev_hash"]
-        while prev_hash != algo.hash2_dic(Block.get_genesis().header):
+        while prev_hash != Block.get_genesis().header["prev_hash"]:
             b = self._hash_block_map[prev_hash]
             new_hash_block_map[prev_hash] = b
             prev_hash = b.header["prev_hash"]
