@@ -182,7 +182,7 @@ def print_balance(miners):
     print()
 
 if __name__ == "__main__":
-    num_miners = 3
+    num_miners = 5
     miners = create_miner_network(num_miners)
     creator_sk = ecdsa.SigningKey.generate()
     creator_privkey = creator_sk.to_string().hex()
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     miners[0].create_transaction(receiver=miners[1].pubkey, amount=100,
                                  comment="cant spend")
     # Initialize coins
-    n1 = 10
+    n1 = 20
     amt1 = 10
     print("(Creator) Sending {0} transactions of amount {1} to Miner 0..."\
             .format(n1, amt1))
@@ -213,7 +213,7 @@ if __name__ == "__main__":
             .format(miners[1].blockchain.endhash_clen_map))
     # Balance is updated with 100 from mining and some more from creator
     # Sending transactions to others
-    n2 = 10
+    n2 = 20
     amt2 = 5
     print(("(Miner 0) Sending {0} transactions with amount {1} "
            "to random miners...").format(n2, amt2))
@@ -222,7 +222,9 @@ if __name__ == "__main__":
         miners[0].create_transaction(receiver=miners[index].pubkey,
                                      amount=amt2, comment="random")
     print_balance(miners)
-    for i in range(1, len(miners)):
+    # All miners start competing (random)
+    for _ in range(1, len(miners)):
+        i = random.randint(0, len(miners) - 1)
         print("(Miner {0}) Mining with {1} transactions...".format(i, num_trans))
         miners[i].create_block(num_trans)
         print_balance(miners)
