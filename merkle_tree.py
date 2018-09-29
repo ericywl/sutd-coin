@@ -127,14 +127,17 @@ if __name__ == "__main__":
     chars = string.ascii_letters + string.digits
     items = []
     tree = MerkleTree()
+    print("Generating transactions...")
     transactions = generate_transactions(random.randint(10, 100))
     for t_json in transactions:
         tree.add(t_json)
         items.append(t_json)
+    print("Computing root...")
     root = tree.get_root()
+    print("Root: " + root)
+    print("Computing proof for random entry...")
     entry = items[random.randint(0, len(items)-1)]
     proof = tree.get_proof(entry)
-    print("Root: " + root)
     print("Proof: " + str(proof))
     ver = verify_proof(entry, proof, root)
     print("Verify: " + ("Success" if ver else "Failure"))
