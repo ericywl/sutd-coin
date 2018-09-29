@@ -5,7 +5,7 @@ import algo
 import datetime, json
 
 class Block:
-    _zeroes = "000"
+    _zeroes = "0000"
     _interm = "ff"
     TARGET = _zeroes + _interm + (64 - len(_zeroes) - len(_interm)) * "f"
 
@@ -34,7 +34,6 @@ class Block:
         header = {
             "prev_hash": algo.HASH_LEN * '0',
             "root": algo.HASH_LEN * 'f',
-            "accmap_hash": algo.HASH_LEN * 'f',
             "timestamp": 1337.0,
             "nonce": 0
         }
@@ -122,10 +121,6 @@ class Block:
         j1 = self.to_json()
         j2 = other.to_json()
         return j1 == j2
-
-    @property
-    def account_map(self):
-        return self._account_map
 
     @property
     def transactions(self):

@@ -21,7 +21,7 @@ class Blockchain:
     def _get_chain_length(self, block):
         prev_hash = block.header["prev_hash"]
         chain_len = 0
-        while prev_hash != Block.get_genesis().header["prev_hash"]:
+        while prev_hash != algo.hash2_dic(Block.get_genesis().header):
             for b in self._hash_block_map.values():
                 if prev_hash == algo.hash2_dic(b.header):
                     prev_hash = b.header["prev_hash"]
@@ -33,7 +33,7 @@ class Blockchain:
     def _get_chain_pow(self, block):
         prev_hash = block.header["prev_hash"]
         chain_pow = block.header["nonce"]
-        while prev_hash != Block.get_genesis().header["prev_hash"]:
+        while prev_hash != algo.hash2_dic(Block.get_genesis().header):
             for b in self._hash_block_map.values():
                 if prev_hash == algo.hash2_dic(b.header):
                     prev_hash = b.header["prev_hash"]
@@ -61,8 +61,7 @@ class Blockchain:
             self._endhash_clen_map[curr_hash] = self._get_chain_length(block)
 
     # Check block with prev_hash exist in list
-    def _check_prev_exist(self, block):
-        prev_hash = block.header["prev_hash"]
+    def _check_prev_exist(self, prev_hash):
         try:
             b = self._hash_block_map[prev_hash]
         except KeyError:
@@ -71,14 +70,12 @@ class Blockchain:
             return True
 
     # Check if previous block is valid
-    def _check_prev_valid(self, block):
-        prev_hash = block.header["prev_hash"]
+    def _check_prev_valid(self, prev_hash):
         prev_block = self._hash_block_map[prev_hash]
         try:
             prev_block.validate()
             prev_block.verify()
         except Exception as e:
-            print(repr(e))
             return False
         else:
             return True
@@ -97,34 +94,27 @@ class Blockchain:
         remaining_transactions = blk_trans_set - trans_set
         return len(remaining_transactions) == num_b_transactions
 
-    # Check account map contains all accounts in previous account map
-    def _check_accmap_state(self, block):
-        prev_hash = block.header["prev_hash"]
-        prev_block = self._hash_block_map[prev_hash]
-        prev_block_accounts = prev_block.account_map.keys()
-        curr_block_account = block.account_map.keys()
-        return all(acc in curr_block_accounts for acc in prev_block_accounts)
+    def _check_accmap_state(self, prev_hash):
+        return True
 
-    # Verify the block individually as well as in the context of chain
+    # Verify the block
     def verify(self, block):
-        # Verify and validate block (self-contained)
-        block.validate()
-        block.verify()
         # Check previous block exist in blocks list
-        if not self._check_prev_exist(block):
+        if not self._check_prev_exist(block.header["prev_hash"]):
             raise Exception("Previous block does not exist.")
         # Check that previous block is valid
-        if not self._check_prev_valid(block):
+        if not self._check_prev_valid(block.header["prev_hash"]):
             raise Exception("Previous block is invalid.")
         # Check timestamp in block header
         if not self._check_timestamp(block):
             raise Exception("Invalid timestamp in block.")
+        # Verify and validate block (self-contained)
+        block.validate()
+        block.verify()
         # Check transactions in blockchain not reused in block
         if not self._check_trans_in_chain(block.transactions):
             raise Exception("Transaction is already in the blockchain.")
-        # Check account map state
-        if not self._check_accmap_state(block):
-            raise Exception("Account map state is invalid.")
+        # Check nonce is not reused
         return True
 
     # Convenience function for lambda in resolve()
@@ -151,7 +141,7 @@ class Blockchain:
         blk = self._hash_block_map[blk_hash]
         new_hash_block_map = { blk_hash: blk }
         prev_hash = blk.header["prev_hash"]
-        while prev_hash != Block.get_genesis().header["prev_hash"]:
+        while prev_hash != algo.hash2_dic(Block.get_genesis().header):
             b = self._hash_block_map[prev_hash]
             new_hash_block_map[prev_hash] = b
             prev_hash = b.header["prev_hash"]
@@ -193,11 +183,9 @@ def main():
         hashes.append(algo.hash2_dic(new_block.header))
         blockchain.add(new_block)
     # Introduce fork
-    n = 2
-    prev_hash = hashes[n]
-    print("Forking at block {}!".format(n))
+    prev_hash = hashes[2]
     for i in range(4):
-        print("Creating fork block {}...".format(i+n+1))
+        print("Creating fork block {}...".format(i))
         transactions = generate_transactions(10)
         fork_block = Block.new(prev_hash, transactions)
         blockchain.add(fork_block)
