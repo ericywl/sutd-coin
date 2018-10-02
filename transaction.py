@@ -1,5 +1,9 @@
 import algo
-import ecdsa, json, datetime, os
+import ecdsa
+import json
+import datetime
+import os
+
 
 class Transaction:
     def __init__(self, sender, receiver, amount, nonce,
