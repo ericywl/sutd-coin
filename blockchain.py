@@ -155,7 +155,11 @@ class Blockchain:
 
     @property
     def transactions(self):
-        return [t for t in b.transactions for b in self.blocks]
+        res = []
+        for b in self.blocks:
+            for t in b.transactions:
+                res.append(t)
+        return res
 
     @property
     def hash_block_map(self):
