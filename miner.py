@@ -3,7 +3,9 @@ from blockchain import *
 from block import *
 import algo
 
-import ecdsa, random
+import ecdsa
+import random
+
 
 class Miner:
     MAX_TRANS = 100
@@ -175,13 +177,15 @@ def create_miner_network(n):
                 m1.add_peer(m2)
     return miners
 
+
 def print_balance(miners):
     print("===================================================")
     for j in range(len(miners)):
-        print("(Miner {3}) Total: {0}, Pending: {1}, Available: {2}"\
-          .format(miners[j].total_balance, miners[j].pending_balance,
-                  miners[j].available_balance, j))
+        print("(Miner {3}) Total: {0}, Pending: {1}, Available: {2}"
+              .format(miners[j].total_balance, miners[j].pending_balance,
+                      miners[j].available_balance, j))
     print()
+
 
 if __name__ == "__main__":
     num_miners = 5
@@ -197,8 +201,8 @@ if __name__ == "__main__":
     # Initialize coins
     n1 = 10
     amt1 = 30
-    print("(Creator) Sending {0} transactions of amount {1} to Miner 0..."\
-            .format(n1, amt1))
+    print("(Creator) Sending {0} transactions of amount {1} to Miner 0..."
+          .format(n1, amt1))
     for i in range(n1):
         t = Transaction.new(sender=creator_pubkey, receiver=miners[0].pubkey,
                             amount=amt1, privkey=creator_privkey,
@@ -225,6 +229,7 @@ if __name__ == "__main__":
     # All miners start competing (random)
     for _ in range(1, len(miners)):
         i = random.randint(0, len(miners) - 1)
-        print("(Miner {0}) Mining with {1} transactions...".format(i, num_trans))
+        print("(Miner {0}) Mining with {1} transactions...".format(
+            i, num_trans))
         miners[i].create_block(num_trans)
         print_balance(miners)

@@ -2,7 +2,10 @@ from merkle_tree import *
 from transaction import *
 import algo
 
-import datetime, json, copy
+import datetime
+import json
+import copy
+
 
 class Block:
     _zeroes = "0000"
@@ -146,8 +149,10 @@ def generate_transactions(n):
         transactions.append(t.to_json())
     return transactions
 
+
 if __name__ == "__main__":
-    import os, time
+    import os
+    import time
     print("Generating transactions...")
     transactions = generate_transactions(20)
     start = time.time()
@@ -156,5 +161,3 @@ if __name__ == "__main__":
     print("Time to make new block: {}s".format(elapsed))
     b2 = Block.from_json(b1.to_json())
     print("Testing from_json and to_json: {}".format(b1 == b2))
-
-

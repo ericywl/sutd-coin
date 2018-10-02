@@ -3,6 +3,7 @@ import algo
 
 import statistics
 
+
 class Blockchain:
     def __init__(self, hash_block_map, endhash_clen_map):
         self._hash_block_map = hash_block_map
@@ -12,9 +13,9 @@ class Blockchain:
     def new(cls):
         genesis = Block.get_genesis()
         genesis_hash = algo.hash2_dic(genesis.header)
-        hash_block_map = { genesis_hash: genesis }
+        hash_block_map = {genesis_hash: genesis}
         # Keep track of end blocks and chain length
-        endhash_clen_map = { genesis_hash: 0 }
+        endhash_clen_map = {genesis_hash: 0}
         return cls(hash_block_map, endhash_clen_map)
 
     # Compute chain length from block (not including genesis)
@@ -135,17 +136,17 @@ class Blockchain:
         # Multiple chain with same length exist,
         # use PoW ie. nonce to determine which to keep
         if len(block_hashes) != 1:
-            block_hashes = [ max(block_hashes, key=lambda bh: self._pow(bh)) ]
+            block_hashes = [max(block_hashes, key=lambda bh: self._pow(bh))]
         # Remove all blocks beloging to forks
         blk_hash = block_hashes[0]
         blk = self._hash_block_map[blk_hash]
-        new_hash_block_map = { blk_hash: blk }
+        new_hash_block_map = {blk_hash: blk}
         prev_hash = blk.header["prev_hash"]
         while prev_hash != Block.get_genesis().header["prev_hash"]:
             b = self._hash_block_map[prev_hash]
             new_hash_block_map[prev_hash] = b
             prev_hash = b.header["prev_hash"]
-        self._endhash_clen_map = { block_hashes[0]: longest_clen }
+        self._endhash_clen_map = {block_hashes[0]: longest_clen}
         self._hash_block_map = new_hash_block_map
         return blk
 
@@ -196,9 +197,9 @@ def main():
     print("Post-resolve: " + str(blockchain.endhash_clen_map))
     print("Last block hash: " + algo.hash2_dic(last_blk.header))
 
+
 if __name__ == "__main__":
     from transaction import *
     from merkle_tree import *
     import ecdsa
     main()
-

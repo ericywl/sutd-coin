@@ -1,8 +1,12 @@
 import algo
 
-import math, hashlib
-import time, random, string
+import math
+import hashlib
+import time
+import random
+import string
 from collections import deque
+
 
 class MerkleTree:
     class Node:
@@ -44,7 +48,8 @@ class MerkleTree:
     # Add entries to tree
     def add(self, entry):
         entry_hash = algo.hash1(entry)
-        entry_node = self.Node(len(self.leaves_map) + 1, None, None, entry_hash)
+        entry_node = self.Node(len(self.leaves_map) + 1,
+                               None, None, entry_hash)
         self.leaves_map[entry] = entry_node
         self.tree_height = math.ceil(math.log(len(self.leaves_map), 2))
         self.root = None
@@ -66,7 +71,7 @@ class MerkleTree:
             self.root = dq[0]
         while self.root == None:
             if len(dq) >= 2 and dq[0].height == dq[1].height:
-                # Pop first two nodes 
+                # Pop first two nodes
                 left = dq.popleft()
                 right = dq.popleft()
                 # Create parent node
