@@ -114,6 +114,8 @@ class Miner:
             t = Transaction.from_json(t_json)
             if t.receiver == self._pubkey:
                 self._total_balance += t.amount
+            if t.sender == self._pubkey:
+                self._pending_balance -= t.amount
 
     # Add new block to the blockchain
     def add_block(self, block_json):
@@ -191,9 +193,10 @@ if __name__ == "__main__":
     print("(Miner 0) Trying to spend with no coins...")
     miners[0].create_transaction(receiver=miners[1].pubkey, amount=100,
                                  comment="cant spend")
+    print()
     # Initialize coins
-    n1 = 20
-    amt1 = 10
+    n1 = 10
+    amt1 = 30
     print("(Creator) Sending {0} transactions of amount {1} to Miner 0..."\
             .format(n1, amt1))
     for i in range(n1):
@@ -208,12 +211,9 @@ if __name__ == "__main__":
     print("(Miner 0) Mining with {} transactions...".format(num_trans))
     miners[0].create_block(num_trans)
     print_balance(miners)
-    # Blockchain of Miner 1 is updated because Miner 0 broadcasted block
-    print("(Miner 1) Blockchain: {}"\
-            .format(miners[1].blockchain.endhash_clen_map))
     # Balance is updated with 100 from mining and some more from creator
     # Sending transactions to others
-    n2 = 20
+    n2 = 30
     amt2 = 5
     print(("(Miner 0) Sending {0} transactions with amount {1} "
            "to random miners...").format(n2, amt2))
