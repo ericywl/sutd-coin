@@ -88,15 +88,14 @@ class Blockchain:
         return block.header["timestamp"] > prev_block.header["timestamp"]
 
     # Check if block contains transactions that are already in chain
-    def _check_trans_in_chain(self, blk_transactions):
-        trans_set = set(self.transactions)
-        blk_trans_set = set(blk_transactions)
+    def _check_trans_in_chain(self, block):
+        prev_hash = block.header["prev_hash"]
+        prev_block = self._hash_block_map[prev_hash]
+        trans_set = set(self.get_transactions_by_fork(prev_block))
+        blk_trans_set = set(block.transactions)
         num_b_transactions = len(blk_trans_set)
         remaining_transactions = blk_trans_set - trans_set
         return len(remaining_transactions) == num_b_transactions
-
-    def _check_accmap_state(self, prev_hash):
-        return True
 
     # Verify the block
     def verify(self, block):
@@ -113,7 +112,7 @@ class Blockchain:
         block.validate()
         block.verify()
         # Check transactions in blockchain not reused in block
-        if not self._check_trans_in_chain(block.transactions):
+        if not self._check_trans_in_chain(block):
             raise Exception("Transaction is already in the blockchain.")
         # Check nonce is not reused
         return True
@@ -150,17 +149,40 @@ class Blockchain:
         self._hash_block_map = new_hash_block_map
         return blk
 
-    @property
-    def blocks(self):
-        return copy.deepcopy(list(self._hash_block_map.values()))
+    # Obtain all blocks in a fork
+    def get_blocks_by_fork(self, last_block):
+        curr_block = last_block
+        blocks = []
+        while curr_block != Block.get_genesis():
+            blocks.append(curr_block)
+            prev_hash = curr_block.header["prev_hash"]
+            curr_block = self._hash_block_map[prev_hash]
+        return copy.deepcopy(list(blocks))
 
-    @property
-    def transactions(self):
-        res = []
-        for b in self.blocks:
-            for t in b.transactions:
-                res.append(t)
-        return res
+    # Obtain all transactions in a fork
+    def get_transactions_by_fork(self, last_block):
+        transaction_list = []
+        for b in self.get_blocks_by_fork(last_block):
+            for t_json in b.transactions:
+                transaction_list.append(t_json)
+        return transaction_list
+
+    # Obtain dictionary of balance in a fork
+    def get_balance_by_fork(self, last_block):
+        balance = {}
+        for t_json in get_transactions_by_fork(last_block):
+            t = Transaction.from_json(t_json)
+            if t.sender not in balance:
+                balance[t.sender] = 0
+            if t.receiver not in balance:
+                balance[t.receiver] = 0
+            balance[t.sender] -= t.amount
+            balance[t.receiver] += t.amount
+        for acc, amt in new_balance:
+            if amt < 0:
+                raise Exception("Negative amount when computing balance.")
+        return balance
+
 
     @property
     def hash_block_map(self):
