@@ -12,15 +12,15 @@ class Transaction:
         self._receiver = receiver
         self._amount = amount
         self._comment = comment
-        self._nonce = nonce
+        self._nonce = os.urandom(32).hex()
         self._signature = signature
 
     # Instantiates object from passed values
     @classmethod
-    def new(cls, sender, receiver, amount, privkey, nonce, comment=""):
+    def new(cls, sender, receiver, amount, privkey, comment=""):
         sender_str = sender
         receiver_str = receiver
-        trans = cls(sender_str, receiver_str, amount, nonce, comment)
+        trans = cls(sender_str, receiver_str, amount, comment)
         trans.sign(privkey)
         if trans.validate():
             return trans
@@ -81,9 +81,9 @@ class Transaction:
         if len(self._signature) != algo.SIG_LEN:
             raise Exception("Transaction signature length is invalid.")
         # Validate nonce
-        if type(self._nonce) != int:
+        if type(self._nonce) != str:
             raise Exception("Transaction nonce not integer.")
-        if self._nonce < 0:
+        if len(self._nonce) != algo.NONCE_LEN:
             raise Exception("Transaction nonce cannot be negative.")
         return True
 
