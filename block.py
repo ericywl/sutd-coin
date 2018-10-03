@@ -11,6 +11,7 @@ class Block:
     _zeroes = "0000"
     _interm = "55"
     TARGET = _zeroes + _interm + (64 - len(_zeroes) - len(_interm)) * "f"
+    REWARD = 100
 
     def __init__(self, header, transactions=[]):
         self._header = header
@@ -98,8 +99,11 @@ class Block:
 
     # Verify all transactions
     def _verify_transactions(self):
-        for t_json in self._transactions:
+        for i in range(len(self._transactions)):
+            t_json = self._transactions[i]
             t = Transaction.from_json(t_json)
+            if i == 0:
+                return t.amount == Block.REWARD
             if not t.verify():
                 return False
         return True
@@ -144,8 +148,9 @@ def generate_transactions(n):
         sender_pubkey = sender_sk.get_verifying_key().to_string().hex()
         receiver_sk = ecdsa.SigningKey.generate()
         receiver_pubkey = receiver_sk.get_verifying_key().to_string().hex()
-        t = Transaction.new(sender_pubkey, receiver_pubkey, 1,
-                            sender_privkey, j, str(j))
+        amt = Block.REWARD if j == 0 else j
+        t = Transaction.new(sender_pubkey, receiver_pubkey, amt,
+                            sender_privkey, str(j))
         transactions.append(t.to_json())
     return transactions
 
