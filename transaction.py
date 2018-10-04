@@ -1,32 +1,37 @@
-import algo
-import ecdsa
+"""Transaction class declaration file"""
 import json
-import datetime
 import os
+import ecdsa
+
+import algo
 
 
 class Transaction:
-    def __init__(self, sender, receiver, amount, nonce,
-                 comment="", signature=None):
+    """Transaction class"""
+
+    def __init__(self, sender, receiver, amount, nonce, comment="",
+                 signature=None):
         self._sender = sender
         self._receiver = receiver
         self._amount = amount
         self._comment = comment
-        self._nonce = os.urandom(32).hex()
+        self._nonce = nonce
         self._signature = signature
 
-    # Instantiates object from passed values
     @classmethod
     def new(cls, sender, receiver, amount, privkey, comment=""):
+        """Instantiates object from passed values"""
         sender_str = sender
         receiver_str = receiver
-        trans = cls(sender_str, receiver_str, amount, comment)
+        nonce = os.urandom(32).hex()
+        trans = cls(sender_str, receiver_str, amount, nonce, comment)
         trans.sign(privkey)
-        if trans.validate():
-            return trans
+        if not trans.validate():
+            return None
+        return trans
 
-    # Serializes object to JSON string
     def to_json(self):
+        """Serializes object to JSON string"""
         return json.dumps({
             "sender": self._sender,
             "receiver": self._receiver,
@@ -36,9 +41,9 @@ class Transaction:
             "signature": self._signature
         })
 
-    # Instantiates/Deserializes object from JSON string
     @classmethod
     def from_json(cls, json_str):
+        """Instantiates/Deserializes object from JSON string"""
         obj = json.loads(json_str)
         fields = [
             "sender", "receiver", "amount", "comment",
@@ -54,46 +59,47 @@ class Transaction:
             comment=obj["comment"],
             signature=obj["signature"]
         )
-        if trans.validate():
-            return trans
+        if not trans.validate():
+            return None
+        return trans
 
-    # Validate transaction correctness.
     def validate(self):
+        """Validate transaction correctness"""
         # Can be called within from_json()
         # Validate sender public key
-        if type(self._sender) != str:
+        if not isinstance(self._sender, str):
             raise Exception("Sender public key not string.")
         if len(self._sender) != algo.KEY_LEN:
             raise Exception("Sender public key length is invalid.")
         # Validate receiver public key
-        if type(self._receiver) != str:
+        if not isinstance(self._receiver, str):
             raise Exception("Receiver public key not string.")
         if len(self._receiver) != algo.KEY_LEN:
             raise Exception("Receiver public key length is invalid.")
         # Check transaction amount > 0
-        if type(self._amount) != int:
+        if not isinstance(self._amount, int):
             raise Exception("Transaction amount not integer.")
         if self._amount <= 0:
             raise Exception("Invalid transaction amount.")
         # Validate signature
-        if type(self._signature) != str:
+        if not isinstance(self._signature, str):
             raise Exception("Transaction signature not string.")
         if len(self._signature) != algo.SIG_LEN:
             raise Exception("Transaction signature length is invalid.")
         # Validate nonce
-        if type(self._nonce) != str:
+        if not isinstance(self._nonce, str):
             raise Exception("Transaction nonce not integer.")
         if len(self._nonce) != algo.NONCE_LEN:
             raise Exception("Transaction nonce cannot be negative.")
         return True
 
-    # Sign object with private key passed
     def sign(self, privkey):
+        """Sign object with private key passed"""
         # Can be called within new()
         self._signature = algo.sign(self.to_json(), privkey)
 
-    # Verify signature
     def verify(self):
+        """Verify signature"""
         # Remove signature before verifying
         sig = self._signature
         self._signature = None
@@ -111,50 +117,56 @@ class Transaction:
         temp_comment = "N/A" if self._comment == "" else self._comment
         string += "Comment: {}\n".format(temp_comment)
         string += "Nonce: {}\n".format(self._nonce)
-        temp_sig = "N/A" if self._signature == None else self._signature
+        temp_sig = "N/A" if self._signature is None else self._signature
         string += "Signature: {}".format(temp_sig)
         return string
 
     # Check whether transactions are the same
     def __eq__(self, other):
-        j1 = self.to_json()
-        j2 = other.to_json()
-        return j1 == j2
+        json1 = self.to_json()
+        json2 = other.to_json()
+        return json1 == json2
 
     @property
     def sender(self):
+        """Sender public key"""
         return self._sender
 
     @property
     def receiver(self):
+        """Receiver public key"""
         return self._receiver
 
     @property
     def amount(self):
+        """Amount in transaction"""
         return self._amount
 
     @property
     def comment(self):
+        """Optional comment"""
         return self._comment
 
     @property
     def signature(self):
+        """Signature to be verified"""
         return self._signature
 
     @property
     def nonce(self):
+        """Randomly generated nonce"""
         return self._nonce
 
 
 if __name__ == "__main__":
-    sender_sk = ecdsa.SigningKey.generate()
-    sender_privkey = sender_sk.to_string().hex()
-    sender_pubkey = sender_sk.get_verifying_key().to_string().hex()
-    receiver_sk = ecdsa.SigningKey.generate()
-    receiver_pubkey = receiver_sk.get_verifying_key().to_string().hex()
-    t = Transaction.new(sender_pubkey, receiver_pubkey, 1, sender_privkey,
-                        1, "hello world")
-    t2 = Transaction.from_json(t.to_json())
-    print(t)
-    assert t2.verify()
-    assert t == t2
+    SENDER_SK = ecdsa.SigningKey.generate()
+    SENDER_PRIVKEY = SENDER_SK.to_string().hex()
+    SENDER_PUBKEY = SENDER_PRIVKEY.get_verifying_key().to_string().hex()
+    RECEIVER_SK = ecdsa.SigningKey.generate()
+    RECEIVER_PUBKEY = RECEIVER_SK.get_verifying_key().to_string().hex()
+    T1 = Transaction.new(SENDER_PUBKEY, RECEIVER_PUBKEY, 1, SENDER_PRIVKEY,
+                         "hello world")
+    T2 = Transaction.from_json(T1.to_json())
+    print(T1)
+    assert T2.verify()
+    assert T1 == T2
