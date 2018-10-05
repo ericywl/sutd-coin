@@ -122,6 +122,20 @@ class Blockchain:
         """Convenience function for lambda in resolve()"""
         return self._get_chain_pow(self._hash_block_map[block_hash])
 
+    def _remove_fork_blocks(self, resolved_block_hash):
+        """Remove all blocks in forks after resolving"""
+        resolved_block = self._hash_block_map[resolved_block_hash]
+        new_hash_block_map = {resolved_block_hash: resolved_block}
+        prev_hash = resolved_block.header["prev_hash"]
+        while prev_hash != Block.get_genesis().header["prev_hash"]:
+            temp_blk = self._hash_block_map[prev_hash]
+            new_hash_block_map[prev_hash] = temp_blk
+            prev_hash = temp_blk.header["prev_hash"]
+        self._endhash_clen_map = {
+            resolved_block_hash: self._get_chain_length(resolved_block)
+        }
+        self._hash_block_map = new_hash_block_map
+
     def resolve(self):
         """Resolve potential forks in block and return last block"""
         # No forks case
@@ -137,17 +151,10 @@ class Blockchain:
         # use PoW ie. nonce to determine which to keep
         if len(block_hashes) != 1:
             block_hashes = [max(block_hashes, key=self._pow)]
-        # Remove all blocks beloging to forks
         blk_hash = block_hashes[0]
         blk = self._hash_block_map[blk_hash]
-        new_hash_block_map = {blk_hash: blk}
-        prev_hash = blk.header["prev_hash"]
-        while prev_hash != Block.get_genesis().header["prev_hash"]:
-            temp_blk = self._hash_block_map[prev_hash]
-            new_hash_block_map[prev_hash] = temp_blk
-            prev_hash = temp_blk.header["prev_hash"]
-        self._endhash_clen_map = {block_hashes[0]: longest_clen}
-        self._hash_block_map = new_hash_block_map
+        # Remove all blocks beloging to forks
+        # self._remove_fork_blocks(blk)
         return blk
 
     def get_blocks_by_fork(self, last_block):
@@ -227,10 +234,11 @@ def main():
         blockchain.add(fork_block)
         prev_hash = algo.hash2_dic(fork_block.header)
     # Try to resolve
-    print("Pre-resolve: " + str(blockchain.endhash_clen_map))
+    print("Blockchain last blocks: {}".format(blockchain.endhash_clen_map))
+    # print("Pre-resolve: " + str(blockchain.endhash_clen_map))
     last_blk = blockchain.resolve()
-    print("Post-resolve: " + str(blockchain.endhash_clen_map))
-    print("Last block hash: " + algo.hash2_dic(last_blk.header))
+    # print("Post-resolve: " + str(blockchain.endhash_clen_map))
+    print("Last block hash: {}".format(algo.hash2_dic(last_blk.header)))
 
 
 if __name__ == "__main__":
