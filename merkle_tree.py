@@ -17,7 +17,7 @@ class MerkleTree:
             self.right = right
             self.hash_val = hash_val
             self.parent = None
-            self.height = left.height + 1 if left is None else 0
+            self.height = left.height + 1 if left is not None else 0
 
         # Return id string for test purposes
         def __str__(self):
@@ -42,8 +42,7 @@ class MerkleTree:
     def _hash_items(self, items):
         # Items should be JSON strings
         res = {}
-        for i in enumerate(items):
-            item = items[i]
+        for i, item in enumerate(items):
             item_hash = algo.hash1(item)
             item_node = self.Node(i + 1, None, None, item_hash)
             res[item] = item_node
