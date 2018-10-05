@@ -194,7 +194,7 @@ class Blockchain:
                 else:
                     balance[trans.sender] -= trans.amount
                     balance[trans.receiver] += trans.amount
-        for _, amt in balance:
+        for _, amt in balance.items():
             if amt < 0:
                 # If this happens it means that something is wrong with the
                 # blockchain and should be discarded immediately

@@ -11,6 +11,7 @@ import algo
 
 class Miner:
     """Miner class"""
+
     def __init__(self, privkey, pubkey):
         self._privkey = privkey
         self._pubkey = pubkey
@@ -35,7 +36,7 @@ class Miner:
         for peer in self._peers:
             peer.add_transaction(trans_json)
 
-    def create_transaction(self, receiver, amount, comment):
+    def create_transaction(self, receiver, amount, comment=""):
         """Create a new transaction"""
         trans = Transaction.new(sender=self._pubkey, receiver=receiver,
                                 amount=amount, privkey=self._privkey,
@@ -82,7 +83,6 @@ class Miner:
 
     def _gather_transactions(self, transaction_pool):
         """Gather a random number of transactions that are valid"""
-        n_trans = random.randint(1, len(transaction_pool))
         # Put in coinbase transaction
         coinbase_trans = Transaction.new(
             sender=self._pubkey,
@@ -91,11 +91,18 @@ class Miner:
             privkey=self._privkey,
             comment="Coinbase"
         )
-        gathered_transactions = [coinbase_trans]
+        gathered_transactions = [coinbase_trans.to_json()]
+        # No transactions to process, return coinbase transaction only
+        if not transaction_pool:
+            return gathered_transactions
+        n_trans = random.randint(1, len(transaction_pool))
         while True:
             if n_trans <= 0:
                 raise Exception("Not enough valid transactions in pool.")
             trans_sample = random.sample(transaction_pool, n_trans)
+            n_trans -= 1
+            if self._check_transactions_balance(trans_sample):
+                break
         gathered_transactions.extend(trans_sample)
         return gathered_transactions
 
@@ -124,6 +131,10 @@ class Miner:
         """Add new block to the blockchain"""
         block = Block.from_json(block_json)
         self._blockchain.add(block)
+        # Resolve blockchain to get last block
+        last_blk = self._blockchain.resolve()
+        # Update own balance state with latest
+        self._balance = self._blockchain.get_balance_by_fork(last_blk)
 
     def add_peer(self, miner):
         """Add miner to peer list"""
@@ -149,6 +160,11 @@ class Miner:
         """Copy of blockchain"""
         return copy.deepcopy(self._blockchain)
 
+    @property
+    def all_transactions(self):
+        """Copy of all transactions (both used and unused)"""
+        return copy.deepcopy(self._all_transactions)
+
 
 def create_miner_network(num):
     """Create a miner network of num miners where all miners are connected to
@@ -163,7 +179,18 @@ def create_miner_network(num):
     return miner_list
 
 
+def main():
+    """Main function"""
+    num_miners = 5
+    miners = create_miner_network(num_miners)
+    miners[0].create_block()
+    print(miners[0].balance)
+    for _ in range(5):
+        index = random.randint(1, num_miners - 1)
+        miners[0].create_transaction(miners[index].pubkey, 10)
+    miners[1].create_block()
+    print(miners[0].balance)
+
+
 if __name__ == "__main__":
-    NUM_MINERS = 5
-    MINERS = create_miner_network(NUM_MINERS)
-    MINERS[0].create_block()
+    main()
