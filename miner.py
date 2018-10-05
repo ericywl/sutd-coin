@@ -17,7 +17,8 @@ class Miner:
         self._pubkey = pubkey
         self._balance = {}
         self._blockchain = Blockchain.new()
-        self._all_transactions = set()
+        self._added_transactions = set()
+        self._pending_transactions = set()
         self._peers = []
 
     @classmethod
@@ -25,16 +26,16 @@ class Miner:
         """Create new Miner instance"""
         signing_key = ecdsa.SigningKey.generate()
         verifying_key = signing_key.get_verifying_key()
-        priverifying_keyey = signing_key.to_string().hex()
+        privkey = signing_key.to_string().hex()
         pubkey = verifying_key.to_string().hex()
-        return cls(priverifying_keyey, pubkey)
+        return cls(privkey, pubkey)
 
     def _broadcast_transaction(self, trans_json):
         """Broadcast the transaction to the network"""
         # Assume that peers are all nodes in the network
         # (of course, not practical IRL since its not scalable)
         for peer in self._peers:
-            peer.add_transaction(trans_json)
+            peer.receive_transaction(trans_json)
 
     def create_transaction(self, receiver, amount, comment=""):
         """Create a new transaction"""
@@ -46,15 +47,22 @@ class Miner:
         self._broadcast_transaction(trans_json)
         return trans
 
+    def receive_transaction(self, trans_json):
+        """Receive a transaction from the network"""
+        self.add_transaction(trans_json)
+
     def add_transaction(self, trans_json):
         """Add transaction to the pool of transactions"""
-        if trans_json in self._all_transactions:
+        if trans_json in self._pending_transactions:
             print("Transaction already exist in pool.")
+            return
+        if trans_json in self._added_transactions:
+            print("Transaction already added to blockchain.")
             return
         trans = Transaction.from_json(trans_json)
         if not trans.verify():
             raise Exception("New transaction failed signature verification.")
-        self._all_transactions.add(trans_json)
+        self._pending_transactions.add(trans_json)
 
     def _broadcast_block(self, block_json):
         """Broadcast the block to the network"""
@@ -108,16 +116,10 @@ class Miner:
 
     def create_block(self):
         """Create a new block"""
-        # Resolve blockchain to get last block
-        last_blk = self._blockchain.resolve()
-        # Update own balance state with latest
-        self._balance = self._blockchain.get_balance_by_fork(last_blk)
-        # Get a set of random transactions from remaining transaction
-        used_trans = self._blockchain.get_transactions_by_fork(last_blk)
-        used_transactions = set(used_trans)
-        remaining_transactions = self._all_transactions - used_transactions
-        gathered_transactions =\
-            self._gather_transactions(remaining_transactions)
+        last_blk = self.update()
+        # Get a set of random transactions from pending transactions
+        gathered_transactions \
+            = self._gather_transactions(self._pending_transactions)
         # Mine new block
         prev_hash = algo.hash2_dic(last_blk.header)
         block = Block.new(prev_hash, gathered_transactions)
@@ -125,16 +127,30 @@ class Miner:
         # Add and broadcast block
         self.add_block(block_json)
         self._broadcast_block(block_json)
+        # Remove gathered transactions from pool and them to added pile
+        self._pending_transactions -= set(gathered_transactions)
+        self._added_transactions |= set(gathered_transactions)
         return block
 
     def add_block(self, block_json):
         """Add new block to the blockchain"""
         block = Block.from_json(block_json)
         self._blockchain.add(block)
+        self.update()
+
+    def update(self):
+        """Update miner's blockchain, balance state and transactions"""
         # Resolve blockchain to get last block
         last_blk = self._blockchain.resolve()
-        # Update own balance state with latest
+        # Update balance state with latest
         self._balance = self._blockchain.get_balance_by_fork(last_blk)
+        # Update added transactions with transactions in blockchain
+        blockchain_transactions \
+            = self._blockchain.get_transactions_by_fork(last_blk)
+        self._added_transactions = set(blockchain_transactions)
+        # Update pending transactions by removing any added ones
+        self._pending_transactions -= self._added_transactions
+        return last_blk
 
     def add_peer(self, miner):
         """Add miner to peer list"""
@@ -161,9 +177,9 @@ class Miner:
         return copy.deepcopy(self._blockchain)
 
     @property
-    def all_transactions(self):
-        """Copy of all transactions (both used and unused)"""
-        return copy.deepcopy(self._all_transactions)
+    def pending_transactions(self):
+        """Copy of all pending transactions"""
+        return copy.deepcopy(self._pending_transactions)
 
 
 def create_miner_network(num):
