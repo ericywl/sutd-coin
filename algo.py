@@ -19,17 +19,6 @@ def hash1_dic(dic):
     return hash1(json.dumps(dic))
 
 
-def hash2(item):
-    """Hash the encoded item twice using SHA256"""
-    interm = hashlib.sha256(item.encode()).digest()
-    return hashlib.sha256(interm).hexdigest()
-
-
-def hash2_dic(dic):
-    """Hash the JSON of dictionary twice using SHA256"""
-    return hash2(json.dumps(dic))
-
-
 def verify_sig(sig, msg, pubkey):
     """Verify the signature with public key, using default ECDSA"""
     ecdsa_pubkey = ecdsa.VerifyingKey.from_string(bytes.fromhex(pubkey))
