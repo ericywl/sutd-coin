@@ -181,19 +181,19 @@ class Blockchain:
         for blk in self.get_blocks_by_fork(last_block):
             for i in range(len(blk.transactions)):
                 t_json = blk.transactions[i]
-                tx = Transaction.from_json(t_json)
+                converted_tx = Transaction.from_json(t_json)
                 # Create accounts in balance if not exist
-                if tx.sender not in balance:
-                    balance[tx.sender] = 0
-                if tx.receiver not in balance:
-                    balance[tx.receiver] = 0
+                if converted_tx.sender not in balance:
+                    balance[converted_tx.sender] = 0
+                if converted_tx.receiver not in balance:
+                    balance[converted_tx.receiver] = 0
                 # Coinbase transaction
-                if i == 0 and tx.sender == tx.receiver:
-                    balance[tx.receiver] += tx.amount
+                if i == 0 and converted_tx.sender == converted_tx.receiver:
+                    balance[converted_tx.receiver] += converted_tx.amount
                 # Normal transaction
                 else:
-                    balance[tx.sender] -= tx.amount
-                    balance[tx.receiver] += tx.amount
+                    balance[converted_tx.sender] -= converted_tx.amount
+                    balance[converted_tx.receiver] += converted_tx.amount
         for _, amt in balance.items():
             if amt < 0:
                 # If this happens it means that something is wrong with the
@@ -222,6 +222,7 @@ class Blockchain:
 
 def main():
     """Main function"""
+    import threading
     blockchain = Blockchain.new()
     hashes = []
     # Generate 10 blocks with 10 transactions per block
@@ -230,7 +231,7 @@ def main():
         b_transactions = generate_transactions(10)
         prev_block = blockchain.resolve()
         prev_hash = algo.hash1_dic(prev_block.header)
-        new_block = Block.new(prev_hash, b_transactions)
+        new_block = Block.new(prev_hash, b_transactions, threading.Event())
         hashes.append(algo.hash1_dic(new_block.header))
         blockchain.add(new_block)
     # Introduce fork
@@ -238,7 +239,7 @@ def main():
     for i in range(4):
         print("Creating fork block {}...".format(i))
         f_transactions = generate_transactions(10)
-        fork_block = Block.new(prev_hash, f_transactions)
+        fork_block = Block.new(prev_hash, f_transactions, threading.Event())
         blockchain.add(fork_block)
         prev_hash = algo.hash1_dic(fork_block.header)
     # Try to resolve
