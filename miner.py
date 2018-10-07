@@ -1,41 +1,69 @@
 """Miner class declaration file"""
 import random
 import copy
+import threading
+import socket
 import ecdsa
 
 from transaction import Transaction
 from blockchain import Blockchain
 from block import Block
+from server import Server
 import algo
 
 
 class Miner:
     """Miner class"""
 
-    def __init__(self, privkey, pubkey):
+    def __init__(self, privkey, pubkey, address):
         self._privkey = privkey
         self._pubkey = pubkey
+        self._address = address
         self._balance = {}
         self._blockchain = Blockchain.new()
         self._added_transactions = set()
-        self._pending_transactions = set()
+        self._all_transactions = set()
         self._peers = []
+        # Thread locks and events
+        self._blockchain_lock = threading.RLock()
+        self._all_trans_lock = threading.RLock()
+        self._added_trans_lock = threading.RLock()
+        self._stop_mine = threading.Event()
+        # Server
+        self._server = Server(address, self)
+        threading.Thread(target=self._server.run).start()
 
     @classmethod
-    def new(cls):
+    def new(cls, address):
         """Create new Miner instance"""
         signing_key = ecdsa.SigningKey.generate()
         verifying_key = signing_key.get_verifying_key()
         privkey = signing_key.to_string().hex()
         pubkey = verifying_key.to_string().hex()
-        return cls(privkey, pubkey)
+        return cls(privkey, pubkey, address)
 
-    def _broadcast_transaction(self, trans_json):
+    @staticmethod
+    def _send_message(msg, addr):
+        """Send transaction to a single node"""
+        try:
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client.connect(addr)
+            client.sendall(msg.encode())
+        finally:
+            client.close()
+
+    def _broadcast_message(self, msg):
         """Broadcast the transaction to the network"""
         # Assume that peers are all nodes in the network
         # (of course, not practical IRL since its not scalable)
+        threads = []
         for peer in self._peers:
-            peer.receive_transaction(trans_json)
+            new_thread = threading.Thread(target=self._send_message,
+                                          args=(msg, peer.address))
+            new_thread.start()
+            threads.append(new_thread)
+        for thread in threads:
+            thread.join()
 
     def create_transaction(self, receiver, amount, comment=""):
         """Create a new transaction"""
@@ -44,32 +72,22 @@ class Miner:
                                 comment=comment)
         trans_json = trans.to_json()
         self.add_transaction(trans_json)
-        self._broadcast_transaction(trans_json)
+        self._broadcast_message("t" + trans_json)
         return trans
-
-    def receive_transaction(self, trans_json):
-        """Receive a transaction from the network"""
-        self.add_transaction(trans_json)
 
     def add_transaction(self, trans_json):
         """Add transaction to the pool of transactions"""
-        if trans_json in self._pending_transactions:
-            print("Transaction already exist in pool.")
-            return
-        if trans_json in self._added_transactions:
-            print("Transaction already added to blockchain.")
-            return
         trans = Transaction.from_json(trans_json)
         if not trans.verify():
             raise Exception("New transaction failed signature verification.")
-        self._pending_transactions.add(trans_json)
-
-    def _broadcast_block(self, block_json):
-        """Broadcast the block to the network"""
-        # Assume that peers are all nodes in the network
-        # (of course, not practical IRL since its not scalable)
-        for peer in self._peers:
-            peer.add_block(block_json)
+        self._all_trans_lock.acquire()
+        try:
+            if trans_json in self._all_transactions:
+                print("Transaction already exist in pool.")
+                return
+            self._all_transactions.add(trans_json)
+        finally:
+            self._all_trans_lock.release()
 
     def _check_transactions_balance(self, transactions):
         """Check balance state if transactions were applied"""
@@ -116,30 +134,50 @@ class Miner:
 
     def create_block(self):
         """Create a new block"""
-        last_blk = self.update()
-        # Get a set of random transactions from pending transactions
-        gathered_transactions \
-            = self._gather_transactions(self._pending_transactions)
-        # Mine new block
-        prev_hash = algo.hash2_dic(last_blk.header)
-        block = Block.new(prev_hash, gathered_transactions)
-        block_json = block.to_json()
-        # Add and broadcast block
-        self.add_block(block_json)
-        self._broadcast_block(block_json)
-        # Remove gathered transactions from pool and them to added pile
-        self._pending_transactions -= set(gathered_transactions)
-        self._added_transactions |= set(gathered_transactions)
+        self._blockchain_lock.acquire()
+        self._added_trans_lock.acquire()
+        self._all_trans_lock.acquire()
+        try:
+            last_blk = self._update()
+            # Get a set of random transactions from pending transactions
+            pending_transactions \
+                = self._all_transactions - self._added_transactions
+            gathered_transactions \
+                = self._gather_transactions(pending_transactions)
+            # Mine new block
+            prev_hash = algo.hash1_dic(last_blk.header)
+            block = Block.new(prev_hash, gathered_transactions,
+                              self._stop_mine)
+            if block is None:
+                # Mining stopped by server
+                return None
+            block_json = block.to_json()
+            # Add and broadcast block
+            self.add_block(block_json)
+            self._broadcast_message("b" + block_json)
+            # Remove gathered transactions from pool and them to added pile
+            self._added_transactions |= set(gathered_transactions)
+        finally:
+            self._blockchain_lock.release()
+            self._added_trans_lock.release()
+            self._all_trans_lock.release()
         return block
 
     def add_block(self, block_json):
         """Add new block to the blockchain"""
         block = Block.from_json(block_json)
-        self._blockchain.add(block)
-        self.update()
+        self._blockchain_lock.acquire()
+        self._added_trans_lock.acquire()
+        try:
+            self._blockchain.add(block)
+            self._update()
+        finally:
+            self._blockchain_lock.release()
+            self._added_trans_lock.release()
 
-    def update(self):
+    def _update(self):
         """Update miner's blockchain, balance state and transactions"""
+        # Not thread safe! Only used in other thread safe methods
         # Resolve blockchain to get last block
         last_blk = self._blockchain.resolve()
         # Update balance state with latest
@@ -148,9 +186,18 @@ class Miner:
         blockchain_transactions \
             = self._blockchain.get_transactions_by_fork(last_blk)
         self._added_transactions = set(blockchain_transactions)
-        # Update pending transactions by removing any added ones
-        self._pending_transactions -= self._added_transactions
         return last_blk
+
+    def get_transaction_proof(self, tx_hash):
+        """Get proof of transaction given transaction hash"""
+        self._blockchain_lock.acquire()
+        try:
+            last_blk = self._blockchain.resolve()
+            res = self._blockchain.get_transaction_proof_in_fork(
+                tx_hash, last_blk)
+        finally:
+            self._blockchain_lock.release()
+        return res
 
     def add_peer(self, miner):
         """Add miner to peer list"""
@@ -167,6 +214,11 @@ class Miner:
         return self._privkey
 
     @property
+    def address(self):
+        """Address tuple with IP and port"""
+        return self._address
+
+    @property
     def balance(self):
         """Copy of balance state"""
         return copy.deepcopy(self._balance)
@@ -174,20 +226,51 @@ class Miner:
     @property
     def blockchain(self):
         """Copy of blockchain"""
-        return copy.deepcopy(self._blockchain)
+        self._blockchain_lock.acquire()
+        try:
+            blkchain_copy = copy.deepcopy(self._blockchain)
+        finally:
+            self._blockchain_lock.release()
+        return blkchain_copy
 
     @property
     def pending_transactions(self):
-        """Copy of all pending transactions"""
-        return copy.deepcopy(self._pending_transactions)
+        """Copy of pending transactions"""
+        self._added_trans_lock.acquire()
+        self._all_trans_lock.acquire()
+        try:
+            pending_transactions \
+                = self._all_transactions - self._added_transactions
+        finally:
+            self._added_trans_lock.release()
+            self._all_trans_lock.release()
+        return copy.deepcopy(pending_transactions)
+
+    @property
+    def added_transactions(self):
+        """Copy of added transactions"""
+        self._added_trans_lock.acquire()
+        try:
+            added_trans_copy = copy.deepcopy(self._added_transactions)
+        finally:
+            self._added_trans_lock.release()
+        return added_trans_copy
+
+    @property
+    def stop_mine(self):
+        """Threading Event to stop mining"""
+        return self._stop_mine
 
 
-def create_miner_network(num):
+def create_miner_network(num, starting_port):
     """Create a miner network of num miners where all miners are connected to
     each other"""
     if num < 2:
         raise Exception("Network must have at least 2 miners.")
-    miner_list = [Miner.new() for _ in range(num)]
+    miner_list = []
+    for i in range(num):
+        addr = ("localhost", starting_port + i)
+        miner_list.append(Miner.new(addr))
     for miner1 in miner_list:
         for miner2 in miner_list:
             if miner1 != miner2:
@@ -197,15 +280,25 @@ def create_miner_network(num):
 
 def main():
     """Main function"""
-    num_miners = 5
-    miners = create_miner_network(num_miners)
-    miners[0].create_block()
-    print(miners[0].balance)
+    import time
+    num_miners = 3
+    miners = create_miner_network(num_miners, 12345)
+    print(miners[1].blockchain.endhash_clen_map)
+    thread1 = threading.Thread(target=miners[0].create_block)
+    thread2 = threading.Thread(target=miners[1].create_block)
+    thread1.start()
+    thread2.start()
+    thread1.join()
+    thread2.join()
+    time.sleep(3)
+    print(miners[1].blockchain.endhash_clen_map)
     for _ in range(5):
         index = random.randint(1, num_miners - 1)
         miners[0].create_transaction(miners[index].pubkey, 10)
-    miners[1].create_block()
-    print(miners[0].balance)
+    time.sleep(2)
+    print(len(miners[0].pending_transactions))
+    print(len(miners[1].pending_transactions))
+    print(len(miners[2].pending_transactions))
 
 
 if __name__ == "__main__":
