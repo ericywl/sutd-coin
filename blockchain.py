@@ -19,7 +19,7 @@ class Blockchain:
     def new(cls):
         """Create new Blockchain instance"""
         genesis = Block.get_genesis()
-        genesis_hash = algo.hash2_dic(genesis.header)
+        genesis_hash = algo.hash1_dic(genesis.header)
         hash_block_map = {genesis_hash: genesis}
         # Keep track of end blocks and chain length
         endhash_clen_map = {genesis_hash: 0}
@@ -31,7 +31,7 @@ class Blockchain:
         chain_len = 0
         while prev_hash != Block.get_genesis().header["prev_hash"]:
             for blk in self._hash_block_map.values():
-                if prev_hash == algo.hash2_dic(blk.header):
+                if prev_hash == algo.hash1_dic(blk.header):
                     prev_hash = blk.header["prev_hash"]
                     chain_len += 1
                     break
@@ -43,7 +43,7 @@ class Blockchain:
         chain_pow = block.header["nonce"]
         while prev_hash != Block.get_genesis().header["prev_hash"]:
             for blk in self._hash_block_map.values():
-                if prev_hash == algo.hash2_dic(blk.header):
+                if prev_hash == algo.hash1_dic(blk.header):
                     prev_hash = blk.header["prev_hash"]
                     chain_pow += blk.header["nonce"]
                     break
@@ -53,7 +53,7 @@ class Blockchain:
         """Add new block to chain"""
         # Verify block
         self.verify(block)
-        curr_hash = algo.hash2_dic(block.header)
+        curr_hash = algo.hash1_dic(block.header)
         prev_hash = block.header["prev_hash"]
         self._hash_block_map[curr_hash] = block
         # If the previous block is one of the last blocks,
@@ -181,25 +181,33 @@ class Blockchain:
         for blk in self.get_blocks_by_fork(last_block):
             for i in range(len(blk.transactions)):
                 t_json = blk.transactions[i]
-                trans = Transaction.from_json(t_json)
+                tx = Transaction.from_json(t_json)
                 # Create accounts in balance if not exist
-                if trans.sender not in balance:
-                    balance[trans.sender] = 0
-                if trans.receiver not in balance:
-                    balance[trans.receiver] = 0
+                if tx.sender not in balance:
+                    balance[tx.sender] = 0
+                if tx.receiver not in balance:
+                    balance[tx.receiver] = 0
                 # Coinbase transaction
-                if i == 0 and trans.sender == trans.receiver:
-                    balance[trans.receiver] += trans.amount
+                if i == 0 and tx.sender == tx.receiver:
+                    balance[tx.receiver] += tx.amount
                 # Normal transaction
                 else:
-                    balance[trans.sender] -= trans.amount
-                    balance[trans.receiver] += trans.amount
+                    balance[tx.sender] -= tx.amount
+                    balance[tx.receiver] += tx.amount
         for _, amt in balance.items():
             if amt < 0:
                 # If this happens it means that something is wrong with the
                 # blockchain and should be discarded immediately
                 raise Exception("Negative amount when computing balance.")
         return balance
+
+    def get_transaction_proof_in_fork(self, tx_hash, last_block):
+        """Get proof of transaction in a fork given transaction hash"""
+        for blk in self.get_blocks_by_fork(last_block):
+            proof = blk.get_transaction_proof(tx_hash)
+            if proof is not None:
+                return algo.hash1_dic(blk.header), proof
+        return None
 
     @property
     def hash_block_map(self):
@@ -221,9 +229,9 @@ def main():
         print("Creating block {}...".format(i))
         b_transactions = generate_transactions(10)
         prev_block = blockchain.resolve()
-        prev_hash = algo.hash2_dic(prev_block.header)
+        prev_hash = algo.hash1_dic(prev_block.header)
         new_block = Block.new(prev_hash, b_transactions)
-        hashes.append(algo.hash2_dic(new_block.header))
+        hashes.append(algo.hash1_dic(new_block.header))
         blockchain.add(new_block)
     # Introduce fork
     prev_hash = hashes[2]
@@ -232,13 +240,13 @@ def main():
         f_transactions = generate_transactions(10)
         fork_block = Block.new(prev_hash, f_transactions)
         blockchain.add(fork_block)
-        prev_hash = algo.hash2_dic(fork_block.header)
+        prev_hash = algo.hash1_dic(fork_block.header)
     # Try to resolve
     print("Blockchain last blocks: {}".format(blockchain.endhash_clen_map))
     # print("Pre-resolve: " + str(blockchain.endhash_clen_map))
     last_blk = blockchain.resolve()
     # print("Post-resolve: " + str(blockchain.endhash_clen_map))
-    print("Last block hash: {}".format(algo.hash2_dic(last_blk.header)))
+    print("Last block hash: {}".format(algo.hash1_dic(last_blk.header)))
 
 
 if __name__ == "__main__":
