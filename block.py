@@ -12,7 +12,7 @@ import algo
 class Block:
     """Block class"""
     _zeroes = "0000"
-    _interm = "60"
+    _interm = "30"
     TARGET = _zeroes + _interm + (64 - len(_zeroes) - len(_interm)) * "f"
     REWARD = 100
 
@@ -23,7 +23,7 @@ class Block:
         self._transactions = transactions
 
     @classmethod
-    def new(cls, prev_hash, transactions):
+    def new(cls, prev_hash, transactions, stop_mine):
         """Create new Block instance"""
         if not transactions:
             raise Exception("No transactions in block creation.")
@@ -34,12 +34,13 @@ class Block:
             "timestamp": datetime.datetime.utcnow().timestamp(),
             "nonce": 0
         }
-        while True:
+        while not stop_mine.is_set():
             # Compute hash to meet target
-            header_hash = algo.hash2_dic(header)
+            header_hash = algo.hash1_dic(header)
             if header_hash < Block.TARGET:
                 return cls(header, transactions)
             header["nonce"] += 1
+        return None
 
     @classmethod
     def get_genesis(cls):
@@ -143,6 +144,14 @@ class Block:
             raise Exception("Duplicate transactions found.")
         return True
 
+    def get_transaction_proof(self, tx_hash):
+        """Get proof for transaction given transaction hash"""
+        for t_json in self._transactions:
+            if tx_hash == algo.hash1(t_json):
+                return MerkleTree(self._transactions).get_proof(t_json)
+        return None
+
+
     def __eq__(self, other):
         json1 = self.to_json()
         json2 = other.to_json()
@@ -180,10 +189,11 @@ def main():
     """Main function"""
     import os
     import time
+    import threading
     print("Generating transactions...")
     transactions = generate_transactions(20)
     start = time.time()
-    blk1 = Block.new(os.urandom(32).hex(), transactions)
+    blk1 = Block.new(os.urandom(32).hex(), threading.Event(), transactions)
     elapsed = time.time() - start
     print("Time to make new block: {}s".format(elapsed))
     blk2 = Block.from_json(blk1.to_json())
