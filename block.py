@@ -12,7 +12,7 @@ import algo
 class Block:
     """Block class"""
     _zeroes = "0000"
-    _interm = "30"
+    _interm = "19"
     TARGET = _zeroes + _interm + (64 - len(_zeroes) - len(_interm)) * "f"
     REWARD = 100
 
@@ -105,6 +105,10 @@ class Block:
             raise Exception("Transactions not list.")
         return True
 
+    def _check_header_hash(self):
+        header_hash = algo.hash1_dic(self._header)
+        return header_hash < Block.TARGET
+
     def _check_root(self):
         """Compare calculated root with stored root"""
         calc_root = MerkleTree(self._transactions).get_root()
@@ -134,6 +138,9 @@ class Block:
         """Block verification (self-contained)"""
         if self == Block.get_genesis():
             return True
+        # Check header hash meets target
+        if not self._check_header_hash():
+            raise Exception("Invalid block header hash.")
         # Check Merkle Tree root of block
         if not self._check_root():
             raise Exception("Invalid root in block.")
@@ -150,7 +157,6 @@ class Block:
             if tx_hash == algo.hash1(t_json):
                 return MerkleTree(self._transactions).get_proof(t_json)
         return None
-
 
     def __eq__(self, other):
         json1 = self.to_json()
