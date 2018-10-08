@@ -85,7 +85,7 @@ def spv_client_run(spv_client: SPVClient):
             LOCK.release()
         tx_in_bc = spv_client.verify_transaction_proof(tx_hash)
         print(f"SPV {spv_index} check TX{tx_index} in blockchain: {tx_in_bc}")
-    time.sleep(5)
+    time.sleep(1)
     # Create new transaction
     bal = spv_client.request_balance()
     if bal > 10:
@@ -120,7 +120,7 @@ def parallel_nodes_run(miners: List[Miner], spv_clients: List[SPVClient]):
 def main():
     """Main function"""
     miners, spv_clients = create_coin_network(4, 4, 12345)
-    for _ in range(5):
+    for _ in range(7):
         parallel_nodes_run(miners, spv_clients)
 
 
