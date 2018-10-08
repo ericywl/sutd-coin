@@ -56,6 +56,8 @@ class Miner:
         """Broadcast the message to peers"""
         # Assume that peers are all nodes in the network
         # (of course, not practical IRL since its not scalable)
+        if not self._peers:
+            raise Exception("Not connected to network.")
         with ThreadPoolExecutor(max_workers=len(self._peers)) as executor:
             for peer in self._peers:
                 executor.submit(Miner._send_message, msg, peer.address)
@@ -72,8 +74,8 @@ class Miner:
 
     def add_transaction(self, tx_json):
         """Add transaction to the pool of transactions"""
-        converted_tx = Transaction.from_json(tx_json)
-        if not converted_tx.verify():
+        recv_tx = Transaction.from_json(tx_json)
+        if not recv_tx.verify():
             raise Exception("New transaction failed signature verification.")
         self._all_tx_lock.acquire()
         try:
@@ -88,18 +90,18 @@ class Miner:
         """Check balance state if transactions were applied"""
         balance = copy.deepcopy(self._balance)
         for tx_json in transactions:
-            converted_tx = Transaction.from_json(tx_json)
+            recv_tx = Transaction.from_json(tx_json)
             # Sender must exist so if it doesn't, return false
-            if converted_tx.sender not in balance:
+            if recv_tx.sender not in balance:
                 return False
             # Create new account for receiver if it doesn't exist
-            if converted_tx.receiver not in balance:
-                balance[converted_tx.receiver] = 0
-            balance[converted_tx.sender] -= converted_tx.amount
-            balance[converted_tx.receiver] += converted_tx.amount
+            if recv_tx.receiver not in balance:
+                balance[recv_tx.receiver] = 0
+            balance[recv_tx.sender] -= recv_tx.amount
+            balance[recv_tx.receiver] += recv_tx.amount
             # Negative balance, return false
-            if balance[converted_tx.sender] < 0 \
-                    or balance[converted_tx.receiver] < 0:
+            if balance[recv_tx.sender] < 0 \
+                    or balance[recv_tx.receiver] < 0:
                 return False
         return True
 
@@ -283,12 +285,7 @@ class MinerListener:
     def handle_client(self, client_sock):
         """Handle receiving and sending"""
         data = client_sock.recv(4096).decode()
-        if data[0].lower() == "t":
-            # Receive new transaction
-            tx_json = data[1:]
-            client_sock.close()
-            self._miner.add_transaction(tx_json)
-        elif data[0].lower() == "b":
+        if data[0].lower() == "b":
             # Receive new block
             blk_json = data[1:]
             client_sock.close()
@@ -296,6 +293,11 @@ class MinerListener:
             self._miner.stop_mine.set()
             self._miner.add_block(blk_json)
             self._miner.stop_mine.clear()
+        elif data[0].lower() == "t":
+            # Receive new transaction
+            tx_json = data[1:]
+            client_sock.close()
+            self._miner.add_transaction(tx_json)
         elif data[0].lower() == "r":
             # Process request for transaction proof
             tx_hash = data[1:]
@@ -338,22 +340,22 @@ def create_miner_network(num, starting_port):
 def miner_run(miner):
     """Execute miner routine"""
     blk = miner.create_block()
-    if blk is not None:
-        peer_index = random.randint(0, len(miner.peers) - 1)
-        miner.create_transaction(miner.peers[peer_index].pubkey, 50)
-    else:
+    if blk is None:
         print("stopped")
+    if miner.pubkey in miner.balance:
+        if miner.balance[miner.pubkey] > 10:
+            peer_index = random.randint(0, len(miner.peers) - 1)
+            miner.create_transaction(miner.peers[peer_index].pubkey, 10)
 
 
-def parallel_miner_run(miners):
+def parallel_miners_run(miners):
     """Run miner routine parallely"""
     import time
     with ThreadPoolExecutor(max_workers=len(miners)) as executor:
         for miner in miners:
             executor.submit(miner_run, miner)
-        executor.shutdown(wait=True)
     time.sleep(2)
-    print(miners[0].pending_transactions)
+    print(miners[0].balance)
     print(miners[0].blockchain.endhash_clen_map)
 
 
@@ -362,7 +364,7 @@ def main():
     num_miners = 8
     miners = create_miner_network(num_miners, 12345)
     for _ in range(5):
-        parallel_miner_run(miners)
+        parallel_miners_run(miners)
 
 
 if __name__ == "__main__":
