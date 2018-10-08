@@ -163,6 +163,17 @@ class Block:
         json2 = other.to_json()
         return json1 == json2
 
+    def __str__(self):
+        string = "Block Information\n"
+        string += "============================\n"
+        string += "Previous hash: {}\n".format(self._header["prev_hash"])
+        string += "Root: {}\n".format(self._header["root"])
+        timestamp = datetime.datetime.utcfromtimestamp(
+            self._header["timestamp"])
+        string += "Timestamp: {} UTC\n".format(timestamp)
+        string += "Nonce: {}\n".format(self._header["nonce"])
+        return string
+
     @property
     def transactions(self):
         """Copy of transactions in block"""

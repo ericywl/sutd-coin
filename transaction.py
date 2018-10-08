@@ -118,7 +118,7 @@ class Transaction:
         string += "Comment: {}\n".format(temp_comment)
         string += "Nonce: {}\n".format(self._nonce)
         temp_sig = "N/A" if self._signature is None else self._signature
-        string += "Signature: {}".format(temp_sig)
+        string += "Signature: {}\n".format(temp_sig)
         return string
 
     # Check whether transactions are the same
