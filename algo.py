@@ -4,7 +4,7 @@ import json
 import ecdsa
 
 HASH_LEN = 64
-NONCE_LEN = 64
+NONCE_LEN = 8
 SIG_LEN = 96
 KEY_LEN = 96
 

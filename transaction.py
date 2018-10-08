@@ -23,7 +23,7 @@ class Transaction:
         """Instantiates object from passed values"""
         sender_str = sender
         receiver_str = receiver
-        nonce = os.urandom(32).hex()
+        nonce = os.urandom(algo.NONCE_LEN // 2).hex()
         trans = cls(sender_str, receiver_str, amount, nonce, comment)
         trans.sign(privkey)
         if not trans.validate():
