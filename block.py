@@ -1,7 +1,8 @@
 """Block class declaration file"""
+import copy
 import datetime
 import json
-import copy
+import os
 import ecdsa
 
 from merkle_tree import MerkleTree
@@ -32,14 +33,14 @@ class Block:
             "prev_hash": prev_hash,
             "root": root,
             "timestamp": datetime.datetime.utcnow().timestamp(),
-            "nonce": 0
+            "nonce": os.urandom(algo.NONCE_LEN // 2).hex()
         }
         while not stop_mine.is_set():
             # Compute hash to meet target
             header_hash = algo.hash1_dic(header)
             if header_hash < Block.TARGET:
                 return cls(header, transactions)
-            header["nonce"] += 1
+            header["nonce"] = os.urandom(algo.NONCE_LEN // 2).hex()
         return None
 
     @classmethod
@@ -49,7 +50,7 @@ class Block:
             "prev_hash": algo.HASH_LEN * '0',
             "root": algo.HASH_LEN * 'f',
             "timestamp": 1337.0,
-            "nonce": 0
+            "nonce": algo.NONCE_LEN * '0'
         }
         return cls(header)
 
@@ -96,10 +97,10 @@ class Block:
         if self._header["timestamp"] <= 0:
             raise Exception("Invalid timestamp value.")
         # Check nonce
-        if not isinstance(self._header["nonce"], int):
+        if not isinstance(self._header["nonce"], str):
             raise Exception("Nonce not integer.")
-        if self._header["nonce"] < 0:
-            raise Exception("Nonce cannot be negative.")
+        if len(self._header["nonce"]) != algo.NONCE_LEN:
+            raise Exception("Nonce length is invalid.")
         # Check transactions
         if not isinstance(self._transactions, list):
             raise Exception("Transactions not list.")
@@ -204,13 +205,13 @@ def generate_transactions(num):
 
 def main():
     """Main function"""
-    import os
     import time
     import threading
     print("Generating transactions...")
     transactions = generate_transactions(20)
     start = time.time()
-    blk1 = Block.new(os.urandom(32).hex(), threading.Event(), transactions)
+    blk1 = Block.new(os.urandom(algo.HASH_LEN // 2).hex(),
+                     transactions, threading.Event())
     elapsed = time.time() - start
     print("Time to make new block: {}s".format(elapsed))
     blk2 = Block.from_json(blk1.to_json())
