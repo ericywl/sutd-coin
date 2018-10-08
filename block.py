@@ -12,7 +12,7 @@ import algo
 class Block:
     """Block class"""
     _zeroes = "0000"
-    _interm = "19"
+    _interm = "29"
     TARGET = _zeroes + _interm + (64 - len(_zeroes) - len(_interm)) * "f"
     REWARD = 100
 
