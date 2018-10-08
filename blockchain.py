@@ -40,12 +40,12 @@ class Blockchain:
     def _get_chain_pow(self, block):
         """Compute proof of work of chain from last block"""
         prev_hash = block.header["prev_hash"]
-        chain_pow = block.header["nonce"]
+        chain_pow = int(algo.hash1_dic(block.header), 16)
         while prev_hash != Block.get_genesis().header["prev_hash"]:
             for blk in self._hash_block_map.values():
                 if prev_hash == algo.hash1_dic(blk.header):
                     prev_hash = blk.header["prev_hash"]
-                    chain_pow += blk.header["nonce"]
+                    chain_pow += int(algo.hash1_dic(blk.header), 16)
                     break
         return chain_pow
 
@@ -124,6 +124,7 @@ class Blockchain:
 
     def _remove_fork_blocks(self, resolved_block_hash):
         """Remove all blocks in forks after resolving"""
+        # Currently not used
         resolved_block = self._hash_block_map[resolved_block_hash]
         new_hash_block_map = {resolved_block_hash: resolved_block}
         prev_hash = resolved_block.header["prev_hash"]
@@ -147,8 +148,7 @@ class Blockchain:
         block_hashes = [
             k for k, v in self._endhash_clen_map.items() if v == longest_clen
         ]
-        # Multiple chain with same length exist,
-        # use PoW ie. nonce to determine which to keep
+        # Multiple chain with same length exist, use PoW to decide
         if len(block_hashes) != 1:
             block_hashes = [max(block_hashes, key=self._pow)]
         blk_hash = block_hashes[0]
@@ -226,7 +226,7 @@ def main():
     blockchain = Blockchain.new()
     hashes = []
     # Generate 10 blocks with 10 transactions per block
-    for i in range(10):
+    for i in range(7):
         print("Creating block {}...".format(i))
         b_transactions = generate_transactions(10)
         prev_block = blockchain.resolve()
