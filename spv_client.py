@@ -27,7 +27,7 @@ class SPVClient:
         self._trans_lock = threading.RLock()
         self._blkheader_lock = threading.RLock()
         # Listener
-        self._listener = SPVClientListener(address, self)
+        self._listener = _SPVClientListener(address, self)
         threading.Thread(target=self._listener.run).start()
 
     @classmethod
@@ -38,142 +38,6 @@ class SPVClient:
         privkey = signing_key.to_string().hex()
         pubkey = verifying_key.to_string().hex()
         return cls(privkey, pubkey, address)
-
-    @staticmethod
-    def _send_message(msg, address):
-        """Send transaction to a single node"""
-        try:
-            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client.connect(address)
-            client.sendall(msg.encode())
-        finally:
-            client.close()
-
-    def _broadcast_message(self, msg):
-        """Broadcast the transaction to peers"""
-        # Assume that peers are all nodes in the network
-        # (of course, not practical IRL since its not scalable)
-        if not self._peers:
-            raise Exception("Not connected to network.")
-        with ThreadPoolExecutor(max_workers=len(self._peers)) as executor:
-            for peer in self._peers:
-                executor.submit(SPVClient._send_message, msg, peer.address)
-
-    def create_transaction(self, receiver, amount, comment=""):
-        """Create a new transaction"""
-        trans = Transaction.new(sender=self.pubkey, receiver=receiver,
-                                amount=amount, privkey=self.privkey,
-                                comment=comment)
-        tx_json = trans.to_json()
-        self.add_transaction(tx_json)
-        msg = "t" + json.dumps({"tx_json": tx_json})
-        self._broadcast_message(msg)
-        return trans
-
-    def add_transaction(self, tx_json):
-        """Add transaction to the pool of transactions"""
-        recv_tx = Transaction.from_json(tx_json)
-        if not recv_tx.verify():
-            raise Exception("New transaction failed signature verification.")
-        if self.pubkey not in [recv_tx.sender, recv_tx.receiver]:
-            # Transaction does not concern us, discard it
-            return
-        tx_hash = algo.hash1(tx_json)
-        self._trans_lock.acquire()
-        try:
-            self._hash_transactions_map[tx_hash] = tx_json
-        finally:
-            self._trans_lock.release()
-
-    def add_block_header(self, block_json):
-        """Add block header to dictionary"""
-        block = Block.from_json(block_json)
-        blk_header_hash = algo.hash1_dic(block.header)
-        if blk_header_hash >= Block.TARGET:
-            raise Exception("Invalid block header hash.")
-        self._blkheader_lock.acquire()
-        try:
-            if block.header["prev_hash"] not in self._hash_blkheader_map:
-                raise Exception("Previous block does not exist.")
-            self._hash_blkheader_map[blk_header_hash] = block.header
-        finally:
-            self._blkheader_lock.release()
-
-    @staticmethod
-    def _send_request(req, addr):
-        """Send request to a single node"""
-        try:
-            client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_sock.connect(addr)
-            client_sock.sendall(req.encode())
-            reply = client_sock.recv(4096).decode()
-        finally:
-            client_sock.close()
-        if reply == "spv":
-            return reply
-        return reply
-
-    def _broadcast_request(self, req):
-        """Broadcast the request to peers"""
-        if not self._peers:
-            raise Exception("Not connected to network.")
-        executor = ThreadPoolExecutor(max_workers=len(self._peers))
-        futures = [
-            executor.submit(SPVClient._send_request, req, peer.address)
-            for peer in self._peers
-        ]
-        executor.shutdown(wait=True)
-        replies = [future.result() for future in futures]
-        return replies
-
-    @staticmethod
-    def _process_replies(replies):
-        """Process the replies from sending requests"""
-        replies = [rep for rep in replies if rep.lower() != "spv"]
-        if not replies:
-            raise Exception("No miner replies for request.")
-        # Assume majority reply is valid
-        valid_reply = max(replies, key=replies.count)
-        return json.loads(valid_reply)
-
-    def request_balance(self):
-        """Request balance from network"""
-        req = "x" + json.dumps({"identifier": self.pubkey})
-        replies = self._broadcast_request(req)
-        return int(SPVClient._process_replies(replies))
-
-    def verify_transaction_proof(self, tx_hash):
-        """Verify that transaction is in blockchain"""
-        req = "r" + json.dumps({"tx_hash": tx_hash})
-        replies = self._broadcast_request(req)
-        valid_reply = SPVClient._process_replies(replies)
-        blk_hash = valid_reply["blk_hash"]
-        proof = valid_reply["proof"]
-        last_blk_hash = valid_reply["last_blk_hash"]
-        # Transaction not in blockchain
-        if proof is None:
-            return False
-        # Assume majority reply is not lying and that two hash checks
-        # are sufficient (may not be true IRL)
-        self._blkheader_lock.acquire()
-        self._trans_lock.acquire()
-        try:
-            if blk_hash not in self._hash_blkheader_map \
-                    or last_blk_hash not in self._hash_blkheader_map:
-                raise Exception("Invalid transaction proof reply.")
-            tx_json = self._hash_transactions_map[tx_hash]
-            blk_header = self._hash_blkheader_map[blk_hash]
-            if not verify_proof(tx_json, proof, blk_header["root"]):
-                # Majority lied (eclipse attack)
-                raise Exception("Transaction proof verification failed.")
-        finally:
-            self._blkheader_lock.release()
-            self._trans_lock.release()
-        return True
-
-    def add_peer(self, peer):
-        """Add miner to peer list"""
-        self._peers.append(peer)
 
     @property
     def privkey(self):
@@ -217,8 +81,143 @@ class SPVClient:
             self._blkheader_lock.release()
         return blkheaders_copy
 
+    def create_transaction(self, receiver, amount, comment=""):
+        """Create a new transaction"""
+        trans = Transaction.new(sender=self.pubkey, receiver=receiver,
+                                amount=amount, privkey=self.privkey,
+                                comment=comment)
+        tx_json = trans.to_json()
+        self.add_transaction(tx_json)
+        msg = "t" + json.dumps({"tx_json": tx_json})
+        self._broadcast_message(msg)
+        return trans
 
-class SPVClientListener:
+    def add_transaction(self, tx_json):
+        """Add transaction to the pool of transactions"""
+        recv_tx = Transaction.from_json(tx_json)
+        if not recv_tx.verify():
+            raise Exception("New transaction failed signature verification.")
+        if self.pubkey not in [recv_tx.sender, recv_tx.receiver]:
+            # Transaction does not concern us, discard it
+            return
+        tx_hash = algo.hash1(tx_json)
+        self._trans_lock.acquire()
+        try:
+            self._hash_transactions_map[tx_hash] = tx_json
+        finally:
+            self._trans_lock.release()
+
+    def add_block_header(self, block_json):
+        """Add block header to dictionary"""
+        block = Block.from_json(block_json)
+        blk_header_hash = algo.hash1_dic(block.header)
+        if blk_header_hash >= Block.TARGET:
+            raise Exception("Invalid block header hash.")
+        self._blkheader_lock.acquire()
+        try:
+            if block.header["prev_hash"] not in self._hash_blkheader_map:
+                raise Exception("Previous block does not exist.")
+            self._hash_blkheader_map[blk_header_hash] = block.header
+        finally:
+            self._blkheader_lock.release()
+
+    def request_balance(self):
+        """Request balance from network"""
+        req = "x" + json.dumps({"identifier": self.pubkey})
+        replies = self._broadcast_request(req)
+        return int(SPVClient._process_replies(replies))
+
+    def verify_transaction_proof(self, tx_hash):
+        """Verify that transaction is in blockchain"""
+        req = "r" + json.dumps({"tx_hash": tx_hash})
+        replies = self._broadcast_request(req)
+        valid_reply = SPVClient._process_replies(replies)
+        blk_hash = valid_reply["blk_hash"]
+        proof = valid_reply["proof"]
+        last_blk_hash = valid_reply["last_blk_hash"]
+        # Transaction not in blockchain
+        if proof is None:
+            return False
+        # Assume majority reply is not lying and that two hash checks
+        # are sufficient (may not be true IRL)
+        self._blkheader_lock.acquire()
+        self._trans_lock.acquire()
+        try:
+            if blk_hash not in self._hash_blkheader_map \
+                    or last_blk_hash not in self._hash_blkheader_map:
+                raise Exception("Invalid transaction proof reply.")
+            tx_json = self._hash_transactions_map[tx_hash]
+            blk_header = self._hash_blkheader_map[blk_hash]
+            if not verify_proof(tx_json, proof, blk_header["root"]):
+                # Majority lied (eclipse attack)
+                raise Exception("Transaction proof verification failed.")
+        finally:
+            self._blkheader_lock.release()
+            self._trans_lock.release()
+        return True
+    def add_peer(self, peer):
+        """Add miner to peer list"""
+        self._peers.append(peer)
+
+
+    # PRIVATE AND STATIC METHODS
+
+    def _broadcast_request(self, req):
+        """Broadcast the request to peers"""
+        if not self._peers:
+            raise Exception("Not connected to network.")
+        executor = ThreadPoolExecutor(max_workers=len(self._peers))
+        futures = [
+            executor.submit(SPVClient._send_request, req, peer.address)
+            for peer in self._peers
+        ]
+        executor.shutdown(wait=True)
+        replies = [future.result() for future in futures]
+        return replies
+
+    def _broadcast_message(self, msg):
+        """Broadcast the transaction to peers"""
+        # Assume that peers are all nodes in the network
+        # (of course, not practical IRL since its not scalable)
+        if not self._peers:
+            raise Exception("Not connected to network.")
+        with ThreadPoolExecutor(max_workers=len(self._peers)) as executor:
+            for peer in self._peers:
+                executor.submit(SPVClient._send_message, msg, peer.address)
+
+    @staticmethod
+    def _send_message(msg, address):
+        """Send transaction to a single node"""
+        try:
+            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client.connect(address)
+            client.sendall(msg.encode())
+        finally:
+            client.close()
+
+    @staticmethod
+    def _send_request(req, addr):
+        """Send request to a single node"""
+        try:
+            client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_sock.connect(addr)
+            client_sock.sendall(req.encode())
+            reply = client_sock.recv(4096).decode()
+        finally:
+            client_sock.close()
+        return reply
+
+    @staticmethod
+    def _process_replies(replies):
+        """Process the replies from sending requests"""
+        replies = [rep for rep in replies if rep.lower() != "spv"]
+        if not replies:
+            raise Exception("No miner replies for request.")
+        # Assume majority reply is valid
+        valid_reply = max(replies, key=replies.count)
+        return json.loads(valid_reply)
+
+class _SPVClientListener:
     """SPV client's Listener class"""
 
     def __init__(self, server_addr, spv_client):

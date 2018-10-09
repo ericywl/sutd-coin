@@ -9,8 +9,7 @@ import algo
 class Transaction:
     """Transaction class"""
 
-    def __init__(self, sender, receiver, amount, nonce, comment="",
-                 signature=None):
+    def __init__(self, sender, receiver, amount, nonce, comment = "", signature = None):
         self._sender = sender
         self._receiver = receiver
         self._amount = amount
@@ -19,7 +18,7 @@ class Transaction:
         self._signature = signature
 
     @classmethod
-    def new(cls, sender, receiver, amount, privkey, comment=""):
+    def new(cls, sender, receiver, amount, privkey, comment = ""):
         """Instantiates object from passed values"""
         sender_str = sender
         receiver_str = receiver
@@ -99,7 +98,7 @@ class Transaction:
         self._signature = algo.sign(self.to_json(), privkey)
 
     def verify(self):
-        """Verify signature"""
+        """Verify signature."""
         # Remove signature before verifying
         sig = self._signature
         self._signature = None
@@ -114,18 +113,14 @@ class Transaction:
         string += "Sender: {}\n".format(self._sender)
         string += "Receiver: {}\n".format(self._receiver)
         string += "Amount: {}\n".format(self._amount)
-        temp_comment = "N/A" if self._comment == "" else self._comment
-        string += "Comment: {}\n".format(temp_comment)
+        string += "Comment: {}\n".format(self._comment if self._comment else "N/A")
         string += "Nonce: {}\n".format(self._nonce)
-        temp_sig = "N/A" if self._signature is None else self._signature
-        string += "Signature: {}\n".format(temp_sig)
+        string += "Signature: {}\n".format(self._signature if self._signature else "N/A")
         return string
 
     # Check whether transactions are the same
     def __eq__(self, other):
-        json1 = self.to_json()
-        json2 = other.to_json()
-        return json1 == json2
+        return self.to_json() == other.to_json()
 
     @property
     def sender(self):
