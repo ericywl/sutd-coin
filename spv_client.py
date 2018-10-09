@@ -186,6 +186,7 @@ class SPVClient:
         """set peers on first discovery"""
         for peer in peers:
             peer["address"] = tuple(peer["address"])
+        peers = list(filter(lambda peer: peer["address"] != self._address, peers))
         self._peers = peers
 
     def add_peer(self, peer):
@@ -317,7 +318,7 @@ if __name__ == "__main__":
     balance = spv_client.request_balance()
     if balance > 10:
         peer_index = random.randint(0, len(spv_client.peers) - 1)
-        peer = spv_client.peers[peer_index]
-        tx_json = spv_client.create_transaction(peer.pubkey, 10).to_json()
+        chosen_peer = spv_client.peers[peer_index]
+        tx_json = spv_client.create_transaction(chosen_peer.pubkey, 10).to_json()
         tx_hash = algo.hash1(tx_json)
-        print(f"SPV {spv_client.name} sent {tx_hash} to {peer['pubkey']}")
+        print(f"SPV {spv_client.name} sent {tx_hash} to {chosen_peer['pubkey']}")

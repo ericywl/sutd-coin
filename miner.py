@@ -263,6 +263,7 @@ class Miner:
         """set peers on first discovery"""
         for peer in peers:
             peer["address"] = tuple(peer["address"])
+        peers = list(filter(lambda peer: peer["address"] != self._address, peers))
         self._peers = peers
 
     def add_peer(self, peer):
