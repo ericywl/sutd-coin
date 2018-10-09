@@ -61,7 +61,7 @@ class Miner:
             addresses = json.loads(reply[1:])["addresses"]
             self.set_peers(addresses)
         print("Established connections with {} nodes".format(len(self._peers)))
-        data = {"address": self.address, "pubkey": self.pubkey }
+        data = {"address": self.address, "pubkey": self.pubkey}
         Miner._send_message("n"+json.dumps(data), (TrustedServer.HOST, TrustedServer.PORT))
 
     @staticmethod
@@ -75,12 +75,12 @@ class Miner:
             client_sock.close()
 
     @staticmethod
-    def _send_request(req, addr):
+    def _send_request(msg, address):
         """Send request to a single node"""
         try:
             client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_sock.connect(addr)
-            client_sock.sendall(req.encode())
+            client_sock.connect(address)
+            client_sock.sendall(msg.encode())
             reply = client_sock.recv(4096).decode()
         finally:
             client_sock.close()
@@ -261,10 +261,13 @@ class Miner:
 
     def set_peers(self, peers):
         """set peers on first discovery"""
+        for peer in peers:
+            peer["address"] = tuple(peer["address"])
         self._peers = peers
 
     def add_peer(self, peer):
         """Add miner to peer list"""
+        peer["address"] = tuple(peer["address"])
         self._peers.append(peer)
 
     @property
@@ -361,7 +364,7 @@ class _MinerListener:
         if prot == "n":
             # sent by the central server when a new node joins
             peer = json.loads(data[1:])
-            print("{} has added a node to their network.".format(self._miner.name))
+            # print("{} has added a node to their network.".format(self._miner.name))
             self._miner.add_peer(peer)
             client_sock.close()
         elif prot == "b":

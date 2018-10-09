@@ -37,6 +37,12 @@ else
         python miner.py $(($i + 12345)) &
         IDS+=($!)
       done
+    # for i in $(seq 1 $spv_client_count)
+    #   do
+    #     sleep 2
+    #     python spv_client.py $(($i + 22345)) &
+    #     IDS+=($!)
+    #   done
   fi
 fi
 trap "exit" INT TERM

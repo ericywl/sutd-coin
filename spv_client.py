@@ -4,7 +4,11 @@ import copy
 import json
 import socket
 import threading
+import sys
+import time
+import random
 import ecdsa
+
 from monsterurl import get_monster
 
 import algo
@@ -20,7 +24,7 @@ class SPVClient:
 
     def __init__(self, privkey, pubkey, address):
         self._name = get_monster()
-        print("Starting SPV Client - {}".format(self._name))
+        print("Starting SPV Client - {}".format(self.name))
 
         self._keypair = (privkey, pubkey)
         self._address = address
@@ -48,9 +52,20 @@ class SPVClient:
     def startup(self):
         """Obtain nodes with TrustedServer"""
         print("Obtaining nodes..")
-        SPVClient._send_message("a".encode(), (TrustedServer.HOST, TrustedServer.PORT))
+        reply = SPVClient._send_request("a", (TrustedServer.HOST, TrustedServer.PORT))
+        prot = reply[0].lower()
+        if prot == "a":
+            # sent by the central server when requested for a list of addresses
+            addresses = json.loads(reply[1:])["addresses"]
+            self.set_peers(addresses)
         print("Established connections with {} nodes".format(len(self._peers)))
-        SPVClient._send_message("n".encode(), (TrustedServer.HOST, TrustedServer.PORT))
+        data = {"address": self.address, "pubkey": self.pubkey}
+        SPVClient._send_message("n"+json.dumps(data), (TrustedServer.HOST, TrustedServer.PORT))
+
+    @property
+    def name(self):
+        """name"""
+        return self._name
 
     @property
     def privkey(self):
@@ -169,10 +184,13 @@ class SPVClient:
 
     def set_peers(self, peers):
         """set peers on first discovery"""
+        for peer in peers:
+            peer["address"] = tuple(peer["address"])
         self._peers = peers
 
     def add_peer(self, peer):
         """Add miner to peer list"""
+        peer["address"] = tuple(peer["address"])
         self._peers.append(peer)
 
     # PRIVATE AND STATIC METHODS
@@ -183,7 +201,7 @@ class SPVClient:
             raise Exception("Not connected to network.")
         executor = ThreadPoolExecutor(max_workers=len(self._peers))
         futures = [
-            executor.submit(SPVClient._send_request, req, peer)
+            executor.submit(SPVClient._send_request, req, peer['address'])
             for peer in self._peers
         ]
         executor.shutdown(wait=True)
@@ -232,6 +250,7 @@ class SPVClient:
         valid_reply = max(replies, key=replies.count)
         return json.loads(valid_reply)
 
+
 class _SPVClientListener:
     """SPV client's Listener class"""
 
@@ -259,13 +278,9 @@ class _SPVClientListener:
         prot = data[0].lower()
         if prot == "n":
             # sent by the central server when a new node joins
-            address = json.loads(data[1:])["address"]
+            address = json.loads(data[1:])
+            print("{} has added a node to their network.".format(self._spv_client.name))
             self._spv_client.add_peer(address)
-            client_sock.close()
-        elif prot == "a":
-            # sent by the central server when requested for a list of addresses
-            addresses = json.loads(data[1:])["addresses"]
-            self._spv_client.set_peers(addresses)
             client_sock.close()
         elif prot == "h":
             # Receive new block header
@@ -284,3 +299,25 @@ class _SPVClientListener:
             client_sock.close()
         else:
             client_sock.close()
+
+
+if __name__ == "__main__":
+    spv_client = SPVClient.new(("127.0.0.1", int(sys.argv[1])))
+    spv_client.startup()
+    time.sleep(3)
+    # Request transaction proof
+    transactions = spv_client.transactions
+    if transactions:
+        i = random.randint(0, len(transactions) - 1)
+        tx_hash = algo.hash1(transactions[i])
+        tx_in_bc = spv_client.verify_transaction_proof(tx_hash)
+        print(f"SPV {spv_client.name} check {tx_hash} in blockchain: {tx_in_bc}")
+    time.sleep(1)
+    # Create new transaction
+    balance = spv_client.request_balance()
+    if balance > 10:
+        peer_index = random.randint(0, len(spv_client.peers) - 1)
+        peer = spv_client.peers[peer_index]
+        tx_json = spv_client.create_transaction(peer.pubkey, 10).to_json()
+        tx_hash = algo.hash1(tx_json)
+        print(f"SPV {spv_client.name} sent {tx_hash} to {peer['pubkey']}")

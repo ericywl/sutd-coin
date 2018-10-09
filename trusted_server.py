@@ -66,21 +66,22 @@ class _TrustedServerListener:
         """Handle receiving and sending"""
         data = client_sock.recv(4096).decode()
         prot = data[0].lower()
-        if prot == "n":
+        if prot == "a":
+            # receive a request for addresses
+            msg = "a"+json.dumps({"addresses": self._trusted_server.addresses})
+            client_sock.sendall(msg.encode())
+            client_sock.close()
+        elif prot == "n":
             # we are assuming that all messages are legitimate.
             # should probably have a challenge to ensure that it is indeed
             # either a miner or spv_client instead of adding the address blindly
             # pubkey is spread here to simulate transactions in miner.
 
             node_address = json.loads(data[1:])
+            node_address["address"] = tuple(node_address["address"])
             self._trusted_server.addresses.append(node_address)
             # broadcast to the rest of the nodes
             self._trusted_server.broadcast_address("n"+json.dumps(node_address))
-            # client_sock.close()
-        elif prot == "a":
-            # receive a request for addresses
-            msg = "a"+json.dumps({"addresses": self._trusted_server.addresses})
-            client_sock.sendall(msg.encode())
             client_sock.close()
 
 if __name__ == "__main__":
