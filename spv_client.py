@@ -283,5 +283,4 @@ class _SPVClientListener:
             client_sock.sendall("spv".encode())
             client_sock.close()
         else:
-            print("Wrong message format.")
             client_sock.close()
