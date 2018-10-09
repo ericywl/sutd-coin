@@ -1,5 +1,7 @@
 """Miner class declaration file"""
 from concurrent.futures import ThreadPoolExecutor
+import time
+import sys
 import copy
 import json
 import random
@@ -21,7 +23,7 @@ class Miner:
 
     def __init__(self, privkey, pubkey, address):
         self._name = get_monster()
-        print("Starting Miner - {}".format(self._name))
+        print("Starting Miner - {} on {}".format(self._name, address))
 
         self._keypair = (privkey, pubkey)
         self._address = address
@@ -52,9 +54,9 @@ class Miner:
     def startup(self):
         """Obtain nodes with TrustedServer"""
         print("Obtaining nodes..")
-        Miner._send_message("a".encode(), (TrustedServer.HOST, TrustedServer.PORT))
+        Miner._send_message("a", (TrustedServer.HOST, TrustedServer.PORT))
         print("Established connections with {} nodes".format(len(self._peers)))
-        Miner._send_message("n".encode(), (TrustedServer.HOST, TrustedServer.PORT))
+        Miner._send_message("n", (TrustedServer.HOST, TrustedServer.PORT))
 
     @staticmethod
     def _send_message(msg, address):
@@ -74,7 +76,7 @@ class Miner:
             raise Exception("Not connected to network.")
         with ThreadPoolExecutor(max_workers=len(self._peers)) as executor:
             for peer in self._peers:
-                executor.submit(Miner._send_message, msg, peer.address)
+                executor.submit(Miner._send_message, msg, peer)
 
     def create_transaction(self, receiver, amount, comment=""):
         """Create a new transaction"""
@@ -238,6 +240,10 @@ class Miner:
         finally:
             self._balance_lock.release()
 
+    def set_peers(self, peers):
+        """set peers on first discovery"""
+        self._peers = peers
+
     def add_peer(self, peer):
         """Add miner to peer list"""
         self._peers.append(peer)
@@ -328,7 +334,17 @@ class _MinerListener:
         """Handle receiving and sending"""
         data = client_sock.recv(4096).decode()
         prot = data[0].lower()
-        if prot == "b":
+        if prot == "n":
+            # sent by the central server when a new node joins
+            address = json.loads(data[1:])["address"]
+            self._miner.add_peer(address)
+            client_sock.close()
+        elif prot == "a":
+            # sent by the central server when requested for a list of addresses
+            addresses = json.loads(data[1:])["addresses"]
+            self._miner.set_peers(addresses)
+            client_sock.close()
+        elif prot == "b":
             self._handle_block(data, client_sock)
         elif prot == "t":
             self._handle_transaction(data, client_sock)
@@ -429,3 +445,9 @@ class _MinerListener:
 
 # if __name__ == "__main__":
 #     main()
+
+if __name__ == "__main__":
+    # Execute miner routine
+    miner = Miner.new(("localhost", int(sys.argv[1])))
+    miner.startup()
+    time.sleep(5)

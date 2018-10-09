@@ -20,7 +20,7 @@ class Block:
     def __init__(self, header, transactions=None):
         if transactions is None:
             transactions = []
-        self.header = header
+        self._header = header
         self._transactions = transactions
 
     @classmethod
@@ -181,7 +181,7 @@ class Block:
     @property
     def header(self):
         """Copy of block header"""
-        return copy.deepcopy(self.header)
+        return copy.deepcopy(self._header)
 
 
 def generate_transactions(num):

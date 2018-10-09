@@ -1,14 +1,49 @@
 #! /bin/bash
 
-print_usage() {
-  printf "Usage: ..."
+print_usage() { echo "$0 usage:" && grep " .)\ #" $0; exit 0; }
+IDS=()
+
+finish() {
+  for pid in $IDS
+    do
+      kill $pid
+    done
+  kill 0;
 }
 
-while getopts 'm:s:' flag; do
-  case "${flag}" in
-    m) miner_count=$OPTARG ;;
-    s) spv_client_count=$OPTARG ;;
-    *) print_usage
-       exit 1 ;;
+while getopts ":hm:s:" flag; do
+  case $flag in
+    m) # Set miner count.
+      miner_count=$OPTARG ;;
+    s) # Set SPV client count.
+     spv_client_count=$OPTARG ;;
+    h | *) # Display help.
+      print_usage ;;
   esac
+done
+
+if [ $OPTIND -eq 1 ];
+  then print_usage;
+else
+  if [ -z "$miner_count" ] || [ -z "$spv_client_count" ]; then
+    echo "incorrect params. Please set both miners and spv_clients with -m and -s"
+  else
+    python trusted_server.py &
+    IDS+=($!)
+    sleep 3
+    for i in $(seq 1 $miner_count)
+      do
+        sleep 2
+        python miner.py $(($i + 12345)) &
+        IDS+=($!)
+      done
+  fi
+fi
+trap "exit" INT TERM
+trap finish EXIT
+
+echo "Press [CTRL+C] to stop.."
+while true
+do
+	sleep 1
 done

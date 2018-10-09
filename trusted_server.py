@@ -28,13 +28,9 @@ class TrustedServer:
     def broadcast_address(self, req):
         """Broadcast the new address to peers"""
         executor = ThreadPoolExecutor(max_workers=len(self._addresses))
-        futures = [
+        for node in self._addresses:
             executor.submit(TrustedServer._send_address, req, node)
-            for node in self._addresses
-        ]
         executor.shutdown(wait=True)
-        replies = [future.result() for future in futures]
-        return replies
 
     @staticmethod
     def _send_address(msg, address):
@@ -85,3 +81,6 @@ class _TrustedServerListener:
             msg = "a"+json.dumps({"addresses": self._trusted_server.addresses})
             client_sock.sendall(msg.encode())
             client_sock.close()
+
+if __name__ == "__main__":
+    TrustedServer()
