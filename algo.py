@@ -11,7 +11,8 @@ KEY_LEN = 96
 
 def hash1(item):
     """Hash the encoded item once using SHA256"""
-    return hashlib.sha256(item.encode()).hexdigest()
+    interm = hashlib.sha256(item.encode()).digest()
+    return hashlib.sha256(interm).hexdigest()
 
 
 def hash1_dic(dic):
