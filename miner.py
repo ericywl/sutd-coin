@@ -6,8 +6,11 @@ import random
 import socket
 import threading
 import ecdsa
+from monsterurl import get_monster
 
 import algo
+
+from trusted_server import TrustedServer
 from block import Block
 from blockchain import Blockchain
 from transaction import Transaction
@@ -17,6 +20,9 @@ class Miner:
     """Miner class"""
 
     def __init__(self, privkey, pubkey, address):
+        self._name = get_monster()
+        print("Starting Miner - {}".format(self._name))
+
         self._keypair = (privkey, pubkey)
         self._address = address
         self._balance = {}
@@ -42,6 +48,13 @@ class Miner:
         privkey = signing_key.to_string().hex()
         pubkey = verifying_key.to_string().hex()
         return cls(privkey, pubkey, address)
+
+    def startup(self):
+        """Obtain nodes with TrustedServer"""
+        print("Obtaining nodes..")
+        Miner._send_message("a".encode(), (TrustedServer.HOST, TrustedServer.PORT))
+        print("Established connections with {} nodes".format(len(self._peers)))
+        Miner._send_message("n".encode(), (TrustedServer.HOST, TrustedServer.PORT))
 
     @staticmethod
     def _send_message(msg, address):

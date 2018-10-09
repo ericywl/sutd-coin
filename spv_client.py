@@ -5,9 +5,11 @@ import json
 import socket
 import threading
 import ecdsa
+from monsterurl import get_monster
 
 import algo
 
+from trusted_server import TrustedServer
 from block import Block
 from merkle_tree import verify_proof
 from transaction import Transaction
@@ -17,6 +19,9 @@ class SPVClient:
     """SPVClient class"""
 
     def __init__(self, privkey, pubkey, address):
+        self._name = get_monster()
+        print("Starting SPV Client - {}".format(self._name))
+
         self._keypair = (privkey, pubkey)
         self._address = address
         self._hash_transactions_map = {}
@@ -39,6 +44,13 @@ class SPVClient:
         privkey = signing_key.to_string().hex()
         pubkey = verifying_key.to_string().hex()
         return cls(privkey, pubkey, address)
+
+    def startup(self):
+        """Obtain nodes with TrustedServer"""
+        print("Obtaining nodes..")
+        SPVClient._send_message("a".encode(), (TrustedServer.HOST, TrustedServer.PORT))
+        print("Established connections with {} nodes".format(len(self._peers)))
+        SPVClient._send_message("n".encode(), (TrustedServer.HOST, TrustedServer.PORT))
 
     @property
     def privkey(self):
@@ -154,10 +166,14 @@ class SPVClient:
             self._blkheader_lock.release()
             self._trans_lock.release()
         return True
+
+    def set_peers(self, peers):
+        """set peers on first discovery"""
+        self._peers = peers
+
     def add_peer(self, peer):
         """Add miner to peer list"""
         self._peers.append(peer)
-
 
     # PRIVATE AND STATIC METHODS
 
@@ -167,7 +183,7 @@ class SPVClient:
             raise Exception("Not connected to network.")
         executor = ThreadPoolExecutor(max_workers=len(self._peers))
         futures = [
-            executor.submit(SPVClient._send_request, req, peer.address)
+            executor.submit(SPVClient._send_request, req, peer)
             for peer in self._peers
         ]
         executor.shutdown(wait=True)
@@ -182,7 +198,7 @@ class SPVClient:
             raise Exception("Not connected to network.")
         with ThreadPoolExecutor(max_workers=len(self._peers)) as executor:
             for peer in self._peers:
-                executor.submit(SPVClient._send_message, msg, peer.address)
+                executor.submit(SPVClient._send_message, msg, peer)
 
     @staticmethod
     def _send_message(msg, address):
@@ -241,7 +257,17 @@ class _SPVClientListener:
         """Handle receiving and sending"""
         data = client_sock.recv(4096).decode()
         prot = data[0].lower()
-        if prot == "h":
+        if prot == "n":
+            # sent by the central server when a new node joins
+            address = json.loads(data[1:])["address"]
+            self._spv_client.add_peer(address)
+            client_sock.close()
+        elif prot == "a":
+            # sent by the central server when requested for a list of addresses
+            addresses = json.loads(data[1:])["addresses"]
+            self._spv_client.set_peers(addresses)
+            client_sock.close()
+        elif prot == "h":
             # Receive new block header
             block_header = json.loads(data[1:])
             client_sock.close()
