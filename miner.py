@@ -31,7 +31,7 @@ class Miner:
         self._balance_lock = threading.RLock()
         self._stop_mine = threading.Event()
         # Listener
-        self._listener = MinerListener(address, self)
+        self._listener = _MinerListener(address, self)
         threading.Thread(target=self._listener.run).start()
 
     @classmethod
@@ -69,10 +69,8 @@ class Miner:
                                  amount=amount, privkey=self.privkey,
                                  comment=comment)
         tx_json = new_tx.to_json()
-        # Add transaction to pool (thread safe)
-        self.add_transaction(tx_json)
-        # Broadcast transaction
         msg = "t" + json.dumps({"tx_json": tx_json})
+        self.add_transaction(tx_json)
         self._broadcast_message(msg)
         return new_tx
 
@@ -161,9 +159,10 @@ class Miner:
         blk_json = block.to_json()
         # Add block to blockchain (thread safe)
         self.add_block(blk_json)
-        # Broadcast block
-        msg = "b" + json.dumps({"blk_json": blk_json})
-        self._broadcast_message(msg)
+        # Broadcast block and the header.
+        # b is only taken by miners while h is taken by spv_clients
+        self._broadcast_message("b" + json.dumps({"blk_json": blk_json}))
+        self._broadcast_message("h" + json.dumps(block.header))
         # Remove gathered transactions from pool and them to added pile
         self._added_tx_lock.acquire()
         try:
@@ -293,7 +292,7 @@ class Miner:
         return self._stop_mine
 
 
-class MinerListener:
+class _MinerListener:
     """Miner's Listener class"""
     def __init__(self, server_addr, miner):
         self._server_addr = server_addr
@@ -311,6 +310,22 @@ class MinerListener:
                 conn, _ = self._tcp_sock.accept()
                 # Start new thread to handle client
                 executor.submit(self.handle_client, conn)
+
+    def handle_client(self, client_sock):
+        """Handle receiving and sending"""
+        data = client_sock.recv(4096).decode()
+        prot = data[0].lower()
+        if prot == "b":
+            self._handle_block(data, client_sock)
+        elif prot == "t":
+            self._handle_transaction(data, client_sock)
+        elif prot == "r":
+            self._handle_transaction_proof(data, client_sock)
+        elif prot == "x":
+            self._handle_balance(data, client_sock)
+        else:
+            print("Wrong message format")
+            client_sock.close()
 
     def _handle_block(self, data, client_sock):
         # Receive new block
@@ -352,70 +367,52 @@ class MinerListener:
         client_sock.sendall(str(bal).encode())
         client_sock.close()
 
-    def handle_client(self, client_sock):
-        """Handle receiving and sending"""
-        data = client_sock.recv(4096).decode()
-        prot = data[0].lower()
-        if prot == "b":
-            self._handle_block(data, client_sock)
-        elif prot == "t":
-            self._handle_transaction(data, client_sock)
-        elif prot == "r":
-            self._handle_transaction_proof(data, client_sock)
-        elif prot == "x":
-            self._handle_balance(data, client_sock)
-        else:
-            print("Wrong message format")
-            client_sock.close()
+# def create_miner_network(num, starting_port):
+#     """Create a miner network of num miners where all miners are connected to
+#     each other"""
+#     if num < 2:
+#         raise Exception("Network must have at least 2 miners.")
+#     miner_list = []
+#     for i in range(num):
+#         addr = ("localhost", starting_port + i)
+#         miner_list.append(Miner.new(addr))
+#     for miner1 in miner_list:
+#         for miner2 in miner_list:
+#             if miner1 != miner2:
+#                 miner1.add_peer(miner2)
+#     return miner_list
+
+# def miner_run(miner):
+#     """Execute miner routine"""
+#     if miner.pubkey in miner.balance:
+#         if miner.balance[miner.pubkey] > 50:
+#             peer_index = random.randint(0, len(miner.peers) - 1)
+#             miner.create_transaction(miner.peers[peer_index].pubkey, 50)
+#     blk = miner.create_block()
+#     if blk is None:
+#         print(f"{miner.pubkey} stopped mining")
+#     else:
+#         print(f"{miner.pubkey} mined block")
 
 
-def create_miner_network(num, starting_port):
-    """Create a miner network of num miners where all miners are connected to
-    each other"""
-    if num < 2:
-        raise Exception("Network must have at least 2 miners.")
-    miner_list = []
-    for i in range(num):
-        addr = ("localhost", starting_port + i)
-        miner_list.append(Miner.new(addr))
-    for miner1 in miner_list:
-        for miner2 in miner_list:
-            if miner1 != miner2:
-                miner1.add_peer(miner2)
-    return miner_list
+# def parallel_miners_run(miners):
+#     """Run miner routine parallely"""
+#     import time
+#     with ThreadPoolExecutor(max_workers=len(miners)) as executor:
+#         for miner in miners:
+#             executor.submit(miner_run, miner)
+#     time.sleep(2)
+#     print(miners[0].balance)
+#     print(miners[0].blockchain.endhash_clen_map)
 
 
-def miner_run(miner):
-    """Execute miner routine"""
-    if miner.pubkey in miner.balance:
-        if miner.balance[miner.pubkey] > 50:
-            peer_index = random.randint(0, len(miner.peers) - 1)
-            miner.create_transaction(miner.peers[peer_index].pubkey, 50)
-    blk = miner.create_block()
-    if blk is None:
-        print(f"{miner.pubkey} stopped mining")
-    else:
-        print(f"{miner.pubkey} mined block")
+# def main():
+#     """Main function"""
+#     num_miners = 8
+#     miners = create_miner_network(num_miners, 12345)
+#     for _ in range(5):
+#         parallel_miners_run(miners)
 
 
-def parallel_miners_run(miners):
-    """Run miner routine parallely"""
-    import time
-    with ThreadPoolExecutor(max_workers=len(miners)) as executor:
-        for miner in miners:
-            executor.submit(miner_run, miner)
-    time.sleep(2)
-    print(miners[0].balance)
-    print(miners[0].blockchain.endhash_clen_map)
-
-
-def main():
-    """Main function"""
-    num_miners = 8
-    miners = create_miner_network(num_miners, 12345)
-    for _ in range(5):
-        parallel_miners_run(miners)
-
-
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

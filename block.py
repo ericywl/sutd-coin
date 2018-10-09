@@ -20,7 +20,7 @@ class Block:
     def __init__(self, header, transactions=None):
         if transactions is None:
             transactions = []
-        self._header = header
+        self.header = header
         self._transactions = transactions
 
     @classmethod
@@ -57,7 +57,7 @@ class Block:
     def to_json(self):
         """Convert Block object into JSON string"""
         return json.dumps({
-            "header": self._header,
+            "header": self.header,
             "transactions": self._transactions
         })
 
@@ -79,27 +79,27 @@ class Block:
     def validate(self):
         """Validate block"""
         # Check block header type
-        if not isinstance(self._header, dict):
+        if not isinstance(self.header, dict):
             raise Exception("Block header not dictionary.")
         # Check previous header hash
-        if not isinstance(self._header["prev_hash"], str):
+        if not isinstance(self.header["prev_hash"], str):
             raise Exception("Previous header hash not string.")
-        if len(self._header["prev_hash"]) != algo.HASH_LEN:
+        if len(self.header["prev_hash"]) != algo.HASH_LEN:
             raise Exception("Previous header hash length is invalid.")
         # Check Merkle tree root
-        if not isinstance(self._header["root"], str):
+        if not isinstance(self.header["root"], str):
             raise Exception("Merkle tree root hash not string.")
-        if len(self._header["root"]) != algo.HASH_LEN:
+        if len(self.header["root"]) != algo.HASH_LEN:
             raise Exception("Merkle tree root hash length is invalid.")
         # Check timestamp
-        if not isinstance(self._header["timestamp"], float):
+        if not isinstance(self.header["timestamp"], float):
             raise Exception("Timestamp not float.")
-        if self._header["timestamp"] <= 0:
+        if self.header["timestamp"] <= 0:
             raise Exception("Invalid timestamp value.")
         # Check nonce
-        if not isinstance(self._header["nonce"], str):
+        if not isinstance(self.header["nonce"], str):
             raise Exception("Nonce not integer.")
-        if len(self._header["nonce"]) != algo.NONCE_LEN:
+        if len(self.header["nonce"]) != algo.NONCE_LEN:
             raise Exception("Nonce length is invalid.")
         # Check transactions
         if not isinstance(self._transactions, list):
@@ -107,13 +107,13 @@ class Block:
         return True
 
     def _check_header_hash(self):
-        header_hash = algo.hash1_dic(self._header)
+        header_hash = algo.hash1_dic(self.header)
         return header_hash < Block.TARGET
 
     def _check_root(self):
         """Compare calculated root with stored root"""
         calc_root = MerkleTree(self._transactions).get_root()
-        return calc_root == self._header["root"]
+        return calc_root == self.header["root"]
 
     def _verify_transactions(self):
         """Verify all transactions"""
@@ -160,19 +160,17 @@ class Block:
         return None
 
     def __eq__(self, other):
-        json1 = self.to_json()
-        json2 = other.to_json()
-        return json1 == json2
+        return self.to_json() == other.to_json()
 
     def __str__(self):
         string = "Block Information\n"
         string += "============================\n"
-        string += "Previous hash: {}\n".format(self._header["prev_hash"])
-        string += "Root: {}\n".format(self._header["root"])
+        string += "Previous hash: {}\n".format(self.header["prev_hash"])
+        string += "Root: {}\n".format(self.header["root"])
         timestamp = datetime.datetime.utcfromtimestamp(
-            self._header["timestamp"])
+            self.header["timestamp"])
         string += "Timestamp: {} UTC\n".format(timestamp)
-        string += "Nonce: {}\n".format(self._header["nonce"])
+        string += "Nonce: {}\n".format(self.header["nonce"])
         return string
 
     @property
@@ -183,7 +181,7 @@ class Block:
     @property
     def header(self):
         """Copy of block header"""
-        return copy.deepcopy(self._header)
+        return copy.deepcopy(self.header)
 
 
 def generate_transactions(num):
@@ -210,12 +208,12 @@ def main():
     print("Generating transactions...")
     transactions = generate_transactions(20)
     start = time.time()
-    blk1 = Block.new(os.urandom(algo.HASH_LEN // 2).hex(),
+    block_1 = Block.new(os.urandom(algo.HASH_LEN // 2).hex(),
                      transactions, threading.Event())
     elapsed = time.time() - start
     print("Time to make new block: {}s".format(elapsed))
-    blk2 = Block.from_json(blk1.to_json())
-    print("Testing from_json and to_json: {}".format(blk1 == blk2))
+    block_2 = Block.from_json(block_1.to_json())
+    print("Testing from_json and to_json: {}".format(block_1 == block_2))
 
 
 if __name__ == "__main__":

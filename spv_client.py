@@ -7,6 +7,7 @@ import threading
 import ecdsa
 
 import algo
+
 from block import Block
 from merkle_tree import verify_proof
 from transaction import Transaction
@@ -87,9 +88,8 @@ class SPVClient:
                                 amount=amount, privkey=self.privkey,
                                 comment=comment)
         tx_json = trans.to_json()
-        self.add_transaction(tx_json)
         msg = "t" + json.dumps({"tx_json": tx_json})
-        self._broadcast_message(msg)
+        self._broadcast_transaction(msg)
         return trans
 
     def add_transaction(self, tx_json):
@@ -107,17 +107,16 @@ class SPVClient:
         finally:
             self._trans_lock.release()
 
-    def add_block_header(self, block_json):
+    def add_block_header(self, header):
         """Add block header to dictionary"""
-        block = Block.from_json(block_json)
-        blk_header_hash = algo.hash1_dic(block.header)
-        if blk_header_hash >= Block.TARGET:
+        header_hash = algo.hash1_dic(header)
+        if header_hash >= Block.TARGET:
             raise Exception("Invalid block header hash.")
         self._blkheader_lock.acquire()
         try:
-            if block.header["prev_hash"] not in self._hash_blkheader_map:
+            if header["prev_hash"] not in self._hash_blkheader_map:
                 raise Exception("Previous block does not exist.")
-            self._hash_blkheader_map[blk_header_hash] = block.header
+            self._hash_blkheader_map[header_hash] = header
         finally:
             self._blkheader_lock.release()
 
@@ -175,7 +174,7 @@ class SPVClient:
         replies = [future.result() for future in futures]
         return replies
 
-    def _broadcast_message(self, msg):
+    def _broadcast_transaction(self, msg):
         """Broadcast the transaction to peers"""
         # Assume that peers are all nodes in the network
         # (of course, not practical IRL since its not scalable)
@@ -242,11 +241,11 @@ class _SPVClientListener:
         """Handle receiving and sending"""
         data = client_sock.recv(4096).decode()
         prot = data[0].lower()
-        if prot == "b":
-            # Receive new block
-            blk_json = json.loads(data[1:])["blk_json"]
+        if prot == "h":
+            # Receive new block header
+            block_header = json.loads(data[1:])
             client_sock.close()
-            self._spv_client.add_block_header(blk_json)
+            self._spv_client.add_block_header(block_header)
         elif prot == "t":
             # Receive new transaction
             tx_json = json.loads(data[1:])["tx_json"]
