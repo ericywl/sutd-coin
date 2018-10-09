@@ -20,6 +20,11 @@ class TrustedServer:
         self._listener = _TrustedServerListener(("localhost", TrustedServer.PORT), self)
         threading.Thread(target=self._listener.run).start()
 
+    def add_address(self, address):
+        """ add address """
+        self._addresses.append(address)
+        self._addresses = list({v['address']:v for v in self._addresses}.values())
+
     @property
     def addresses(self):
         """List of node addresses"""
@@ -79,7 +84,7 @@ class _TrustedServerListener:
 
             node_address = json.loads(data[1:])
             node_address["address"] = tuple(node_address["address"])
-            self._trusted_server.addresses.append(node_address)
+            self._trusted_server.add_address(node_address)
             # broadcast to the rest of the nodes
             self._trusted_server.broadcast_address("n"+json.dumps(node_address))
             client_sock.close()
