@@ -51,14 +51,13 @@ class SPVClient:
 
     def startup(self):
         """Obtain nodes with TrustedServer"""
-        print("Obtaining nodes..")
         reply = SPVClient._send_request("a", (TrustedServer.HOST, TrustedServer.PORT))
         prot = reply[0].lower()
         if prot == "a":
             # sent by the central server when requested for a list of addresses
             addresses = json.loads(reply[1:])["addresses"]
             self.set_peers(addresses)
-        print("Established connections with {} nodes".format(len(self._peers)))
+        # print("Established connections with {} nodes".format(len(self._peers)))
         data = {"address": self.address, "pubkey": self.pubkey}
         SPVClient._send_message("n"+json.dumps(data), (TrustedServer.HOST, TrustedServer.PORT))
 
@@ -186,13 +185,13 @@ class SPVClient:
         """set peers on first discovery"""
         for peer in peers:
             peer["address"] = tuple(peer["address"])
-        peers = list(filter(lambda peer: peer["address"] != self._address, peers))
         self._peers = peers
 
     def add_peer(self, peer):
         """Add miner to peer list"""
         peer["address"] = tuple(peer["address"])
-        self._peers.append(peer)
+        if peer["address"] != self.address:
+            self._peers.append(peer)
 
     # PRIVATE AND STATIC METHODS
 
@@ -280,7 +279,7 @@ class _SPVClientListener:
         if prot == "n":
             # sent by the central server when a new node joins
             address = json.loads(data[1:])
-            print("{} has added a node to their network.".format(self._spv_client.name))
+            # print("{} has added a node to their network.".format(self._spv_client.name))
             self._spv_client.add_peer(address)
             client_sock.close()
         elif prot == "h":

@@ -53,14 +53,13 @@ class Miner:
 
     def startup(self):
         """Obtain nodes with TrustedServer"""
-        print("Obtaining nodes..")
         reply = Miner._send_request("a", (TrustedServer.HOST, TrustedServer.PORT))
         prot = reply[0].lower()
         if prot == "a":
             # sent by the central server when requested for a list of addresses
             addresses = json.loads(reply[1:])["addresses"]
             self.set_peers(addresses)
-        print("Established connections with {} nodes".format(len(self._peers)))
+        # print("Established connections with {} nodes".format(len(self._peers)))
         data = {"address": self.address, "pubkey": self.pubkey}
         Miner._send_message("n"+json.dumps(data), (TrustedServer.HOST, TrustedServer.PORT))
 
@@ -115,7 +114,7 @@ class Miner:
         self._all_tx_lock.acquire()
         try:
             if tx_json in self._all_transactions:
-                print("Transaction already exist in pool.")
+                print("{} - Transaction already exist in pool.".format(self.name))
                 return
             self._all_transactions.add(tx_json)
         finally:
@@ -263,13 +262,13 @@ class Miner:
         """set peers on first discovery"""
         for peer in peers:
             peer["address"] = tuple(peer["address"])
-        peers = list(filter(lambda peer: peer["address"] != self._address, peers))
         self._peers = peers
 
     def add_peer(self, peer):
         """Add miner to peer list"""
         peer["address"] = tuple(peer["address"])
-        self._peers.append(peer)
+        if peer["address"] != self.address:
+            self._peers.append(peer)
 
     @property
     def privkey(self):
@@ -474,10 +473,10 @@ if __name__ == "__main__":
     # Execute miner routine
     miner = Miner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
-    time.sleep(3)
     while True:
         if miner.pubkey in miner.balance:
             if miner.balance[miner.pubkey] > 50:
                 peer_index = random.randint(0, len(miner.peers) - 1)
                 miner.create_transaction(miner.peers[peer_index]["pubkey"], 50)
+        time.sleep(5)
         miner.create_block()
