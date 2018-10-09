@@ -27,10 +27,9 @@ class TrustedServer:
 
     def broadcast_address(self, req):
         """Broadcast the new address to peers"""
-        executor = ThreadPoolExecutor(max_workers=len(self._addresses))
-        for node in self._addresses:
-            executor.submit(TrustedServer._send_address, req, node)
-        executor.shutdown(wait=True)
+        with ThreadPoolExecutor(max_workers=len(self.addresses)) as executor:
+            for node in self.addresses:
+                executor.submit(TrustedServer._send_address, req, node['address'])
 
     @staticmethod
     def _send_address(msg, address):
@@ -71,11 +70,13 @@ class _TrustedServerListener:
             # we are assuming that all messages are legitimate.
             # should probably have a challenge to ensure that it is indeed
             # either a miner or spv_client instead of adding the address blindly
-            node_address = client_sock.getpeername()
+            # pubkey is spread here to simulate transactions in miner.
+
+            node_address = json.loads(data[1:])
             self._trusted_server.addresses.append(node_address)
             # broadcast to the rest of the nodes
-            self._trusted_server.broadcast_address("n"+json.dumps({"address": node_address}))
-            client_sock.close()
+            self._trusted_server.broadcast_address("n"+json.dumps(node_address))
+            # client_sock.close()
         elif prot == "a":
             # receive a request for addresses
             msg = "a"+json.dumps({"addresses": self._trusted_server.addresses})

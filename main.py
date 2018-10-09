@@ -36,7 +36,7 @@ def create_coin_network(
             nodes.append(SPVClient.new(addr))
             pubkey_index_map[nodes[i].pubkey] = i + 1 - num_miners
     for node, other_node in itertools.permutations(nodes, 2):
-        node.add_peer(other_node.address)
+        node.add_peer({ "address": other_node.address, "pubkey": other_node.pubkey })
     return nodes[:num_miners], nodes[num_miners:]
 
 def miner_run(miner: Miner):

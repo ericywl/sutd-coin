@@ -23,7 +23,7 @@ class Miner:
 
     def __init__(self, privkey, pubkey, address):
         self._name = get_monster()
-        print("Starting Miner - {} on {}".format(self._name, address))
+        print("Starting Miner - {} on {}".format(self.name, address))
 
         self._keypair = (privkey, pubkey)
         self._address = address
@@ -54,9 +54,15 @@ class Miner:
     def startup(self):
         """Obtain nodes with TrustedServer"""
         print("Obtaining nodes..")
-        Miner._send_message("a", (TrustedServer.HOST, TrustedServer.PORT))
+        reply = Miner._send_request("a", (TrustedServer.HOST, TrustedServer.PORT))
+        prot = reply[0].lower()
+        if prot == "a":
+            # sent by the central server when requested for a list of addresses
+            addresses = json.loads(reply[1:])["addresses"]
+            self.set_peers(addresses)
         print("Established connections with {} nodes".format(len(self._peers)))
-        Miner._send_message("n", (TrustedServer.HOST, TrustedServer.PORT))
+        data = {"address": self.address, "pubkey": self.pubkey }
+        Miner._send_message("n"+json.dumps(data), (TrustedServer.HOST, TrustedServer.PORT))
 
     @staticmethod
     def _send_message(msg, address):
@@ -68,6 +74,18 @@ class Miner:
         finally:
             client_sock.close()
 
+    @staticmethod
+    def _send_request(req, addr):
+        """Send request to a single node"""
+        try:
+            client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_sock.connect(addr)
+            client_sock.sendall(req.encode())
+            reply = client_sock.recv(4096).decode()
+        finally:
+            client_sock.close()
+        return reply
+
     def _broadcast_message(self, msg):
         """Broadcast the message to peers"""
         # Assume that peers are all nodes in the network
@@ -76,7 +94,7 @@ class Miner:
             raise Exception("Not connected to network.")
         with ThreadPoolExecutor(max_workers=len(self._peers)) as executor:
             for peer in self._peers:
-                executor.submit(Miner._send_message, msg, peer)
+                executor.submit(Miner._send_message, msg, peer['address'])
 
     def create_transaction(self, receiver, amount, comment=""):
         """Create a new transaction"""
@@ -184,6 +202,7 @@ class Miner:
             self._added_transactions |= set(gathered_tx)
         finally:
             self._added_tx_lock.release()
+            print("{} created a block.".format(self._name))
         return block
 
     def add_block(self, blk_json):
@@ -269,6 +288,11 @@ class Miner:
         return self._peers
 
     @property
+    def name(self):
+        """name"""
+        return self._name
+
+    @property
     def balance(self):
         """Copy of balance state"""
         return copy.deepcopy(self._balance)
@@ -336,13 +360,9 @@ class _MinerListener:
         prot = data[0].lower()
         if prot == "n":
             # sent by the central server when a new node joins
-            address = json.loads(data[1:])["address"]
-            self._miner.add_peer(address)
-            client_sock.close()
-        elif prot == "a":
-            # sent by the central server when requested for a list of addresses
-            addresses = json.loads(data[1:])["addresses"]
-            self._miner.set_peers(addresses)
+            peer = json.loads(data[1:])
+            print("{} has added a node to their network.".format(self._miner.name))
+            self._miner.add_peer(peer)
             client_sock.close()
         elif prot == "b":
             self._handle_block(data, client_sock)
@@ -353,7 +373,7 @@ class _MinerListener:
         elif prot == "x":
             self._handle_balance(data, client_sock)
         else:
-            print("Wrong message format")
+            # either header or wrong message format
             client_sock.close()
 
     def _handle_block(self, data, client_sock):
@@ -448,6 +468,12 @@ class _MinerListener:
 
 if __name__ == "__main__":
     # Execute miner routine
-    miner = Miner.new(("localhost", int(sys.argv[1])))
+    miner = Miner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
-    time.sleep(5)
+    time.sleep(3)
+    while True:
+        if miner.pubkey in miner.balance:
+            if miner.balance[miner.pubkey] > 50:
+                peer_index = random.randint(0, len(miner.peers) - 1)
+                miner.create_transaction(miner.peers[peer_index]["pubkey"], 50)
+        miner.create_block()
