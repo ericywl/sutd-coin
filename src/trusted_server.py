@@ -16,14 +16,16 @@ class TrustedServer:
     def __init__(self):
         print("Starting Trusted server..")
         self._addresses = []
-        # host here is different from TrustedServer.HOST because it's local to the server
-        self._listener = _TrustedServerListener(("localhost", TrustedServer.PORT), self)
+        # Host here is different from TrustedServer.HOST
+        # because it's local to the server
+        self._listener = _TrustedServerListener(
+            ("localhost", TrustedServer.PORT), self)
         threading.Thread(target=self._listener.run).start()
 
     def add_address(self, address):
-        """ add address """
-        self._addresses.append(address)
-        self._addresses = list({v['address']:v for v in self._addresses}.values())
+        """Add address to list if not already in list"""
+        if address not in self._addresses:
+            self._addresses.append(address)
 
     @property
     def addresses(self):
@@ -34,7 +36,8 @@ class TrustedServer:
         """Broadcast the new address to peers"""
         with ThreadPoolExecutor(max_workers=len(self.addresses)) as executor:
             for node in self.addresses:
-                executor.submit(TrustedServer._send_address, req, node['address'])
+                executor.submit(TrustedServer._send_address,
+                                req, node['address'])
 
     @staticmethod
     def _send_address(msg, address):
@@ -45,6 +48,7 @@ class TrustedServer:
             client.sendall(msg.encode())
         finally:
             client.close()
+
 
 class _TrustedServerListener:
     """Trusted Server's Listener class"""
@@ -72,22 +76,24 @@ class _TrustedServerListener:
         data = client_sock.recv(4096).decode()
         prot = data[0].lower()
         if prot == "a":
-            # receive a request for addresses
-            msg = "a"+json.dumps({"addresses": self._trusted_server.addresses})
+            # Receive a request for addresses
+            msg = "a" + json.dumps(
+                {"addresses": self._trusted_server.addresses})
             client_sock.sendall(msg.encode())
             client_sock.close()
         elif prot == "n":
-            # we are assuming that all messages are legitimate.
+            # We are assuming that all messages are legitimate.
             # should probably have a challenge to ensure that it is indeed
-            # either a miner or spv_client instead of adding the address blindly
-            # pubkey is spread here to simulate transactions in miner.
-
+            # either a miner or spv_client instead of adding the address
+            # blindly pubkey is spread here to simulate transactions in miner.
             node_address = json.loads(data[1:])
             node_address["address"] = tuple(node_address["address"])
             self._trusted_server.add_address(node_address)
-            # broadcast to the rest of the nodes
-            self._trusted_server.broadcast_address("n"+json.dumps(node_address))
+            # Broadcast to the rest of the nodes
+            self._trusted_server.broadcast_address(
+                "n" + json.dumps(node_address))
             client_sock.close()
+
 
 if __name__ == "__main__":
     TrustedServer()

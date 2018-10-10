@@ -9,6 +9,12 @@ finish() {
   exit;
 }
 
+if [[ $UID != 0 ]]; then
+  echo "Please run script with sudo (for nice):"
+  echo "sudo $0 $*"
+  exit 1
+fi
+
 trap finish SIGHUP SIGINT SIGTERM
 while getopts ":hm:s:f" flag; do
   case $flag in
@@ -16,8 +22,8 @@ while getopts ":hm:s:f" flag; do
       miner_count=$OPTARG ;;
     s) # Set SPV client count.
       spv_client_count=$OPTARG ;;
-    f) # enable fuckers
-      fucker_count=1 ;;
+    f) # enable selfish miner
+      selfish_count=1 ;;
     h | *) # Display help.
       print_usage ;;
   esac
@@ -29,7 +35,7 @@ else
   if [ -z "$miner_count" ]; then
     echo "Please set miners"
   else
-    python trusted_server.py &
+    python src/trusted_server.py &
     IDS+=($!)
     sleep 3
 
@@ -37,7 +43,7 @@ else
       for i in $(seq 1 $spv_client_count)
         do
           # sleep 2
-          python spv_client.py $(($i + 22345)) &
+          python src/spv_client.py $(($i + 22345)) &
           IDS+=($!)
         done
     fi
@@ -45,12 +51,12 @@ else
     for i in $(seq 1 $miner_count)
       do
         # sleep 2
-        python miner.py $(($i + 12345)) &
+        python src/miner.py $(($i + 12345)) &
         IDS+=($!)
       done
 
-    if [ -n "$fucker_count" ]; then
-      sudo nice -n -15 python adversary.py $((33345)) &
+    if [ -n "$selfish_count" ]; then
+      sudo nice -n -15 python src/adversary.py $((33345)) &
       IDS+=($!)
     fi
   fi

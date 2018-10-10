@@ -2,7 +2,6 @@
 from concurrent.futures import ThreadPoolExecutor
 import copy
 import json
-import socket
 import threading
 import sys
 import time
@@ -11,13 +10,13 @@ import ecdsa
 
 import algo
 
-from parent import Parent
+from net_node import NetNode, _NetNodeListener
 from block import Block
 from merkle_tree import verify_proof
 from transaction import Transaction
 
 
-class SPVClient(Parent):
+class SPVClient(NetNode):
     """SPVClient class"""
 
     def __init__(self, privkey, pubkey, address):
@@ -73,7 +72,7 @@ class SPVClient(Parent):
                                 comment=comment)
         tx_json = trans.to_json()
         msg = "t" + json.dumps({"tx_json": tx_json})
-        self._broadcast_message(msg)
+        self.broadcast_message(msg)
         return trans
 
     def add_transaction(self, tx_json):
@@ -145,7 +144,7 @@ class SPVClient(Parent):
         """Broadcast the request to peers"""
         if not self._peers:
             raise Exception("Not connected to network.")
-        executor = ThreadPoolExecutor(max_workers=len(self._peers))
+        executor = ThreadPoolExecutor(max_workers=5)
         futures = [
             executor.submit(SPVClient._send_request, req, peer['address'])
             for peer in self._peers
@@ -165,47 +164,28 @@ class SPVClient(Parent):
         return json.loads(valid_reply)
 
 
-class _SPVClientListener:
+class _SPVClientListener(_NetNodeListener):
     """SPV client's Listener class"""
 
-    def __init__(self, server_addr, spv_client):
-        self._server_addr = server_addr
-        self._spv_client = spv_client
-        # TCP socket configuration
-        self._tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._tcp_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._tcp_sock.bind(server_addr)
-        self._tcp_sock.listen(5)
-
-    def run(self):
-        """Start the listener"""
-        while True:
-            conn, _ = self._tcp_sock.accept()
-            # Start new thread to handle client
-            new_thread = threading.Thread(target=self.handle_client,
-                                          args=[conn])
-            new_thread.start()
-
-    def handle_client(self, client_sock):
-        """Handle receiving and sending"""
-        data = client_sock.recv(4096).decode()
+    def handle_client_data(self, data, client_sock):
+        """Handle client data based on protocol indicator"""
         prot = data[0].lower()
         if prot == "n":
-            # sent by the central server when a new node joins
+            # Sent by the central server when a new node joins
             address = json.loads(data[1:])
-            # print("{} has added a node to their network.".format(self._spv_client.name))
-            self._spv_client.add_peer(address)
+            # print(f"{self._worker.name} added a node to their network.")
+            self._worker.add_peer(address)
             client_sock.close()
         elif prot == "h":
             # Receive new block header
             block_header = json.loads(data[1:])
             client_sock.close()
-            self._spv_client.add_block_header(block_header)
+            self._worker.add_block_header(block_header)
         elif prot == "t":
             # Receive new transaction
             tx_json = json.loads(data[1:])["tx_json"]
             client_sock.close()
-            self._spv_client.add_transaction(tx_json)
+            self._worker.add_transaction(tx_json)
         elif prot in "rx":
             # Receive request for transaction proof or balance
             # Send "spv" back so client can exclude this reply
@@ -215,23 +195,30 @@ class _SPVClientListener:
             client_sock.close()
 
 
-if __name__ == "__main__":
+def main():
+    """Main function"""
     spv_client = SPVClient.new(("127.0.0.1", int(sys.argv[1])))
     spv_client.startup()
-    time.sleep(3)
+    spv_name = spv_client.name
+    time.sleep(5)
     # Request transaction proof
     transactions = spv_client.transactions
     if transactions:
         i = random.randint(0, len(transactions) - 1)
         tx_hash = algo.hash1(transactions[i])
         tx_in_bc = spv_client.verify_transaction_proof(tx_hash)
-        print(f"SPV {spv_client.name} check {tx_hash} in blockchain: {tx_in_bc}")
+        print(f"SPV {spv_name} check {tx_hash} in blockchain: {tx_in_bc}")
     time.sleep(1)
     # Create new transaction
     balance = spv_client.request_balance()
     if balance > 10:
         peer_index = random.randint(0, len(spv_client.peers) - 1)
         chosen_peer = spv_client.peers[peer_index]
-        tx_json = spv_client.create_transaction(chosen_peer.pubkey, 10).to_json()
+        created_tx = spv_client.create_transaction(chosen_peer.pubkey, 10)
+        tx_json = created_tx.to_json()
         tx_hash = algo.hash1(tx_json)
-        print(f"SPV {spv_client.name} sent {tx_hash} to {chosen_peer['pubkey']}")
+        print(f"SPV {spv_name} sent {tx_hash} to {chosen_peer['pubkey']}")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,23 +1,23 @@
-"""definition"""
+"""Adversary classes declaration file"""
 import sys
 import time
 import threading
 import json
+# import random
 import ecdsa
-import random
 
 import algo
 
 from block import Block
-from miner import Miner, _MinerListener
+from miner import Miner, _MinerListener, main_send_transaction
 
 
 class SelfishMiner(Miner):
     """☠️ ☠️ ☠️ ☠️ ☠️ ☠️ ☠️"""
 
     def __init__(self, privkey, pubkey, address):
-        super().__init__(privkey, pubkey, address, False)
-        self._selfishfuckers = []
+        super().__init__(privkey, pubkey, address, listen=False)
+        self.withheld_blocks = []
         # Listener
         self._listener = _SelfishMinerListener(address, self)
         threading.Thread(target=self._listener.run).start()
@@ -53,7 +53,7 @@ class SelfishMiner(Miner):
         blk_json = block.to_json()
         # Add block to blockchain (thread safe)
         self.add_block(blk_json)
-        self._selfishfuckers.append(block)
+        self.withheld_blocks.append(block)
         # Remove gathered transactions from pool and them to added pile
         self._added_tx_lock.acquire()
         try:
@@ -63,44 +63,49 @@ class SelfishMiner(Miner):
             print("{} created a block.".format(self._name))
         return block
 
+
 class _SelfishMinerListener(_MinerListener):
     """☠️ ☠️ ☠️ ☠️ ☠️ ☠️ ☠️"""
 
-    def push_block(self, fucker):
-        self._miner._broadcast_message("b" + json.dumps({"blk_json": fucker.to_json()}))
-        self._miner._broadcast_message("h" + json.dumps(fucker.header))
-        print("Block is pushed by fucker - {}".format(self._miner.name))
+    def _push_blocks(self, num):
+        """Push out num blocks from withheld blocks"""
+        if num > len(self._worker.withheld_blocks):
+            raise Exception("Not enough withheld blocks.")
+        for _ in range(num):
+            fker = self._worker.withheld_blocks.pop(0)
+            b_msg = json.dumps({"blk_json": fker.to_json()})
+            self._worker.broadcast_message("b" + b_msg)
+            self._worker.broadcast_message("h" + json.dumps(fker.header))
+            print(f"Block is pushed by selfish miner - {self._worker.name}")
+            time.sleep(0.5)
 
     def handle_client(self, client_sock):
         """Handle receiving and sending"""
         data = client_sock.recv(4096).decode()
         prot = data[0].lower()
         if prot == "b":
-            # purposefully submit their own blocks
-            if len(self._miner._selfishfuckers) >= 3:
-                fucker = self._miner._selfishfuckers.pop(0)
-                self.push_block(fucker)
-                fucker = self._miner._selfishfuckers.pop(0)
-                self.push_block(fucker)
-            elif self._miner._selfishfuckers:
-                for fucker in self._miner._selfishfuckers:
-                    self.push_block(fucker)
-                    time.sleep(0.5)
-                self._miner._selfishfuckers = []
+            # Purposefully broadcast their own blocks when receive
+            if len(self._worker.withheld_blocks) >= 3:
+                self._push_blocks(2)
+            elif self._worker.withheld_blocks:
+                self._push_blocks(len(self._worker.withheld_blocks))
             self._handle_block(data, client_sock)
-            client_sock.close()
         else:
             super().handle_client_data(data, client_sock)
 
-if __name__ == "__main__":
+
+def main():
+    """Main function"""
     # Execute miner routine
     miner = SelfishMiner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
-    print("SelfishMiner established connection with {} peers".format(len(miner.peers)))
+    print(f"SelfishMiner established connection with {len(miner.peers)} peers")
+    time.sleep(5)
     while True:
-        # if miner.pubkey in miner.balance:
-        #     if miner.balance[miner.pubkey] > 50:
-        #         peer_index = random.randint(0, len(miner.peers) - 1)
-        #         miner.create_transaction(miner.peers[peer_index]["pubkey"], 50)
+        # main_send_transaction(miner)
         miner.create_block()
-        print(miner.balance, miner.balance[miner.pubkey])
+        print(miner.balance)
+
+
+if __name__ == "__main__":
+    main()
