@@ -77,14 +77,16 @@ class _SelfishMinerListener(_MinerListener):
         if prot == "b":
             # purposefully submit their own blocks
             if len(self._miner._selfishfuckers) >= 3:
-                # be greedy and pop only the first one
+                fucker = self._miner._selfishfuckers.pop(0)
+                self.push_block(fucker)
                 fucker = self._miner._selfishfuckers.pop(0)
                 self.push_block(fucker)
             elif self._miner._selfishfuckers:
                 for fucker in self._miner._selfishfuckers:
                     self.push_block(fucker)
                     time.sleep(0.5)
-            self._miner._selfishfuckers = []
+                self._miner._selfishfuckers = []
+            self._handle_block(data, client_sock)
             client_sock.close()
         else:
             super().handle_client_data(data, client_sock)
