@@ -209,7 +209,7 @@ def main():
     transactions = generate_transactions(20)
     start = time.time()
     block_1 = Block.new(os.urandom(algo.HASH_LEN // 2).hex(),
-                        transactions, threading.Event())
+                     transactions, threading.Event())
     elapsed = time.time() - start
     print("Time to make new block: {}s".format(elapsed))
     block_2 = Block.from_json(block_1.to_json())
