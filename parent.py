@@ -61,7 +61,7 @@ class Parent:
             addresses = json.loads(reply[1:])["addresses"]
             self.set_peers(addresses)
         # print("Established connections with {} nodes".format(len(self._peers)))
-        data = {"address": self.address, "pubkey": self.pubkey}
+        data = {"address": self.address, "pubkey": self.pubkey, "name": self.name}
         Parent._send_message("n"+json.dumps(data),
                              (TrustedServer.HOST, TrustedServer.PORT))
 
