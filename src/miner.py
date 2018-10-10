@@ -5,7 +5,6 @@ import sys
 import copy
 import json
 import random
-import socket
 import threading
 import ecdsa
 
@@ -20,9 +19,12 @@ from transaction import Transaction
 class Miner(NetNode):
     """Miner class"""
 
+    def _clsname(self):
+        return "Miner"
+
     def __init__(self, privkey, pubkey, address, listen=True):
         super().__init__(privkey, pubkey, address)
-        print("Starting Miner - {} on {}".format(self.name, address))
+        print(f"Starting {self._clsname()} - {self.name} on {address}")
 
         self._balance = {}
         self._blockchain = Blockchain.new()
@@ -147,7 +149,7 @@ class Miner(NetNode):
             self._added_transactions |= set(gathered_tx)
         finally:
             self._added_tx_lock.release()
-            print("{} created a block.".format(self._name))
+            print(f"{self._clsname()} {self.name} created a block.")
         return block
 
     def add_block(self, blk_json):
@@ -285,9 +287,10 @@ class _MinerListener(_NetNodeListener):
         blk_json = json.loads(data[1:])["blk_json"]
         client_sock.close()
         # Stop mining if new block is received
-        self._worker.stop_mine.set()
-        self._worker.add_block(blk_json)
-        self._worker.stop_mine.clear()
+        with self._worker._blockchain_lock:
+            self._worker.stop_mine.set()
+            self._worker.add_block(blk_json)
+            self._worker.stop_mine.clear()
 
     def _handle_transaction(self, data, client_sock):
         # Receive new transaction
@@ -359,7 +362,7 @@ class _MinerListener(_NetNodeListener):
 #     print(miners[0].blockchain.endhash_clen_map)
 
 
-def main_send_transaction(miner):
+def miner_main_send_tx(miner):
     """Used in main to send one transaction"""
     if miner.pubkey in miner.balance:
         if miner.balance[miner.pubkey] > 50:

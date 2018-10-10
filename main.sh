@@ -59,8 +59,6 @@ else
       sudo nice -n -3 python src/adversary.py $((33345)) &
       IDS+=($!)
     fi
-
-    python src/observer.py $((44345)) &
   fi
 fi
 

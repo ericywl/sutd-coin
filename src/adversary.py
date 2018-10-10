@@ -3,23 +3,33 @@ import sys
 import time
 import threading
 import json
+import queue
 # import random
 import ecdsa
 
 import algo
 
 from block import Block
-from miner import Miner, _MinerListener, main_send_transaction
+from miner import Miner, _MinerListener, miner_main_send_tx
+
+
+BE_SELFISH = True
 
 
 class SelfishMiner(Miner):
     """☠️ ☠️ ☠️ ☠️ ☠️ ☠️ ☠️"""
 
+    def _clsname(self):
+        return "SelfishMiner"
+
     def __init__(self, privkey, pubkey, address):
         super().__init__(privkey, pubkey, address, listen=False)
-        self.withheld_blocks = []
+        self.withheld_blocks = queue.Queue()
         # Listener
-        self._listener = _SelfishMinerListener(address, self)
+        if BE_SELFISH:
+            self._listener = _SelfishMinerListener(address, self)
+        else:
+            self._listener = _MinerListener(address, self)
         threading.Thread(target=self._listener.run).start()
 
     @classmethod
@@ -53,14 +63,18 @@ class SelfishMiner(Miner):
         blk_json = block.to_json()
         # Add block to blockchain (thread safe)
         self.add_block(blk_json)
-        self.withheld_blocks.append(block)
+        if BE_SELFISH:
+            self.withheld_blocks.put(block)
+        else:
+            self.broadcast_message("b" + json.dumps({"blk_json": blk_json}))
+            self.broadcast_message("h" + json.dumps(block.header))
         # Remove gathered transactions from pool and them to added pile
         self._added_tx_lock.acquire()
         try:
             self._added_transactions |= set(gathered_tx)
         finally:
             self._added_tx_lock.release()
-            print("{} created a block.".format(self._name))
+            print(f"{self._clsname()} {self.name} created a block.")
         return block
 
 
@@ -69,26 +83,26 @@ class _SelfishMinerListener(_MinerListener):
 
     def _push_blocks(self, num):
         """Push out num blocks from withheld blocks"""
-        if num > len(self._worker.withheld_blocks):
+        if num > self._worker.withheld_blocks.qsize():
             raise Exception("Not enough withheld blocks.")
         for _ in range(num):
-            fker = self._worker.withheld_blocks.pop(0)
+            fker = self._worker.withheld_blocks.get()
             b_msg = json.dumps({"blk_json": fker.to_json()})
             self._worker.broadcast_message("b" + b_msg)
             self._worker.broadcast_message("h" + json.dumps(fker.header))
             print(f"Block is pushed by selfish miner - {self._worker.name}")
             time.sleep(0.5)
 
-    def handle_client(self, client_sock):
+    def handle_client_data(self, data, client_sock):
         """Handle receiving and sending"""
-        data = client_sock.recv(4096).decode()
         prot = data[0].lower()
         if prot == "b":
             # Purposefully broadcast their own blocks when receive
-            if len(self._worker.withheld_blocks) >= 3:
+            qlen = self._worker.withheld_blocks.qsize()
+            if qlen >= 3:
                 self._push_blocks(2)
-            elif self._worker.withheld_blocks:
-                self._push_blocks(len(self._worker.withheld_blocks))
+            elif qlen != 0:
+                self._push_blocks(qlen)
             self._handle_block(data, client_sock)
         else:
             super().handle_client_data(data, client_sock)
