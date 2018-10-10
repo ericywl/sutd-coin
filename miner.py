@@ -276,6 +276,10 @@ class _MinerListener:
     def handle_client(self, client_sock):
         """Handle receiving and sending"""
         data = client_sock.recv(4096).decode()
+        self.handle_client_data(data, client_sock)
+
+    def handle_client_data(self, data, client_sock):
+        """Handle the data switching"""
         prot = data[0].lower()
         if prot == "n":
             # sent by the central server when a new node joins
