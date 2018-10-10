@@ -37,18 +37,6 @@ class Blockchain:
                     break
         return chain_len
 
-    def _get_chain_pow(self, block):
-        """Compute proof of work of chain from last block"""
-        prev_hash = block.header["prev_hash"]
-        chain_pow = int(algo.hash1_dic(block.header), 16)
-        while prev_hash != Block.get_genesis().header["prev_hash"]:
-            for blk in self._hash_block_map.values():
-                if prev_hash == algo.hash1_dic(blk.header):
-                    prev_hash = blk.header["prev_hash"]
-                    chain_pow += int(algo.hash1_dic(blk.header), 16)
-                    break
-        return chain_pow
-
     def add(self, block):
         """Add new block to chain"""
         # Verify block
@@ -118,9 +106,22 @@ class Blockchain:
         # Check nonce is not reused
         return True
 
-    def _pow(self, block_hash):
+    def _get_chain_cummulative_hash(self, block):
+        """Compute cummulative hash of chain from last block"""
+        prev_hash = block.header["prev_hash"]
+        chain_pow = int(algo.hash1_dic(block.header), 16)
+        while prev_hash != Block.get_genesis().header["prev_hash"]:
+            for blk in self._hash_block_map.values():
+                if prev_hash == algo.hash1_dic(blk.header):
+                    prev_hash = blk.header["prev_hash"]
+                    chain_pow += int(algo.hash1_dic(blk.header), 16)
+                    break
+        return chain_pow
+
+    def _cumm_hash(self, block_hash):
         """Convenience function for lambda in resolve()"""
-        return self._get_chain_pow(self._hash_block_map[block_hash])
+        return self._get_chain_cummulative_hash(
+            self._hash_block_map[block_hash])
 
     def _remove_fork_blocks(self, resolved_block_hash):
         """Remove all blocks in forks after resolving"""
@@ -148,9 +149,10 @@ class Blockchain:
         block_hashes = [
             k for k, v in self._endhash_clen_map.items() if v == longest_clen
         ]
-        # Multiple chain with same length exist, use PoW to decide
+        # Multiple chain with same length exist, use cummulative hash to decide
+        # The lowest cummulative hash wins
         if len(block_hashes) != 1:
-            block_hashes = [max(block_hashes, key=self._pow)]
+            block_hashes = [min(block_hashes, key=self._cumm_hash)]
         blk_hash = block_hashes[0]
         blk = self._hash_block_map[blk_hash]
         # Remove all blocks beloging to forks
