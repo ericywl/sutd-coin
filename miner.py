@@ -21,7 +21,7 @@ from transaction import Transaction
 class Miner(Parent):
     """Miner class"""
 
-    def __init__(self, privkey, pubkey, address):
+    def __init__(self, privkey, pubkey, address, listen=True):
         super().__init__(privkey, pubkey, address)
         print("Starting Miner - {} on {}".format(self.name, address))
 
@@ -35,9 +35,11 @@ class Miner(Parent):
         self._added_tx_lock = threading.RLock()
         self._balance_lock = threading.RLock()
         self._stop_mine = threading.Event()
-        # Listener
-        self._listener = _MinerListener(address, self)
-        threading.Thread(target=self._listener.run).start()
+
+        if listen:
+            # Listener
+            self._listener = _MinerListener(address, self)
+            threading.Thread(target=self._listener.run).start()
 
     @classmethod
     def new(cls, address):
@@ -256,6 +258,7 @@ class Miner(Parent):
 
 class _MinerListener:
     """Miner's Listener class"""
+
     def __init__(self, server_addr, miner):
         self._server_addr = server_addr
         self._miner = miner
@@ -395,9 +398,9 @@ if __name__ == "__main__":
     miner.startup()
     print("Miner established connection with {} peers".format(len(miner.peers)))
     while True:
-        if miner.pubkey in miner.balance:
-            if miner.balance[miner.pubkey] > 50:
-                peer_index = random.randint(0, len(miner.peers) - 1)
-                miner.create_transaction(miner.peers[peer_index]["pubkey"], 50)
-        time.sleep(5)
+        # if miner.pubkey in miner.balance:
+        #     if miner.balance[miner.pubkey] > 50:
+        #         peer_index = random.randint(0, len(miner.peers) - 1)
+        #         miner.create_transaction(miner.peers[peer_index]["pubkey"], 50)
+        # time.sleep(5)
         miner.create_block()
