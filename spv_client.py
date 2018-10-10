@@ -9,30 +9,25 @@ import time
 import random
 import ecdsa
 
-from monsterurl import get_monster
-
 import algo
 
-from trusted_server import TrustedServer
+from parent import Parent
 from block import Block
 from merkle_tree import verify_proof
 from transaction import Transaction
 
 
-class SPVClient:
+class SPVClient(Parent):
     """SPVClient class"""
 
     def __init__(self, privkey, pubkey, address):
-        self._name = get_monster()
+        super().__init__(privkey, pubkey, address)
         print("Starting SPV Client - {}".format(self.name))
 
-        self._keypair = (privkey, pubkey)
-        self._address = address
         self._hash_transactions_map = {}
         genesis = Block.get_genesis()
         genesis_hash = algo.hash1_dic(genesis.header)
         self._hash_blkheader_map = {genesis_hash: genesis.header}
-        self._peers = []
         # Thread locks
         self._trans_lock = threading.RLock()
         self._blkheader_lock = threading.RLock()
@@ -48,43 +43,6 @@ class SPVClient:
         privkey = signing_key.to_string().hex()
         pubkey = verifying_key.to_string().hex()
         return cls(privkey, pubkey, address)
-
-    def startup(self):
-        """Obtain nodes with TrustedServer"""
-        reply = SPVClient._send_request("a", (TrustedServer.HOST, TrustedServer.PORT))
-        prot = reply[0].lower()
-        if prot == "a":
-            # sent by the central server when requested for a list of addresses
-            addresses = json.loads(reply[1:])["addresses"]
-            self.set_peers(addresses)
-        # print("Established connections with {} nodes".format(len(self._peers)))
-        data = {"address": self.address, "pubkey": self.pubkey}
-        SPVClient._send_message("n"+json.dumps(data), (TrustedServer.HOST, TrustedServer.PORT))
-
-    @property
-    def name(self):
-        """name"""
-        return self._name
-
-    @property
-    def privkey(self):
-        """Private key"""
-        return self._keypair[0]
-
-    @property
-    def pubkey(self):
-        """Public key"""
-        return self._keypair[1]
-
-    @property
-    def address(self):
-        """Address tuple with IP and port"""
-        return self._address
-
-    @property
-    def peers(self):
-        """List of peers"""
-        return self._peers
 
     @property
     def transactions(self):
@@ -115,7 +73,7 @@ class SPVClient:
                                 comment=comment)
         tx_json = trans.to_json()
         msg = "t" + json.dumps({"tx_json": tx_json})
-        self._broadcast_transaction(msg)
+        self._broadcast_message(msg)
         return trans
 
     def add_transaction(self, tx_json):
@@ -181,18 +139,6 @@ class SPVClient:
             self._trans_lock.release()
         return True
 
-    def set_peers(self, peers):
-        """set peers on first discovery"""
-        for peer in peers:
-            peer["address"] = tuple(peer["address"])
-        self._peers = peers
-
-    def add_peer(self, peer):
-        """Add miner to peer list"""
-        peer["address"] = tuple(peer["address"])
-        if peer["address"] != self.address:
-            self._peers.append(peer)
-
     # PRIVATE AND STATIC METHODS
 
     def _broadcast_request(self, req):
@@ -207,38 +153,6 @@ class SPVClient:
         executor.shutdown(wait=True)
         replies = [future.result() for future in futures]
         return replies
-
-    def _broadcast_transaction(self, msg):
-        """Broadcast the transaction to peers"""
-        # Assume that peers are all nodes in the network
-        # (of course, not practical IRL since its not scalable)
-        if not self._peers:
-            raise Exception("Not connected to network.")
-        with ThreadPoolExecutor(max_workers=len(self._peers)) as executor:
-            for peer in self._peers:
-                executor.submit(SPVClient._send_message, msg, peer)
-
-    @staticmethod
-    def _send_message(msg, address):
-        """Send transaction to a single node"""
-        try:
-            client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client.connect(address)
-            client.sendall(msg.encode())
-        finally:
-            client.close()
-
-    @staticmethod
-    def _send_request(req, addr):
-        """Send request to a single node"""
-        try:
-            client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_sock.connect(addr)
-            client_sock.sendall(req.encode())
-            reply = client_sock.recv(4096).decode()
-        finally:
-            client_sock.close()
-        return reply
 
     @staticmethod
     def _process_replies(replies):

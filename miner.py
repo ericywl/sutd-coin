@@ -8,30 +8,27 @@ import random
 import socket
 import threading
 import ecdsa
-from monsterurl import get_monster
 
 import algo
 
-from trusted_server import TrustedServer
+
+from parent import Parent
 from block import Block
 from blockchain import Blockchain
 from transaction import Transaction
 
 
-class Miner:
+class Miner(Parent):
     """Miner class"""
 
     def __init__(self, privkey, pubkey, address):
-        self._name = get_monster()
+        super().__init__(privkey, pubkey, address)
         print("Starting Miner - {} on {}".format(self.name, address))
 
-        self._keypair = (privkey, pubkey)
-        self._address = address
         self._balance = {}
         self._blockchain = Blockchain.new()
         self._added_transactions = set()
         self._all_transactions = set()
-        self._peers = []
         # Thread locks and events
         self._blockchain_lock = threading.RLock()
         self._all_tx_lock = threading.RLock()
@@ -50,50 +47,6 @@ class Miner:
         privkey = signing_key.to_string().hex()
         pubkey = verifying_key.to_string().hex()
         return cls(privkey, pubkey, address)
-
-    def startup(self):
-        """Obtain nodes with TrustedServer"""
-        reply = Miner._send_request("a", (TrustedServer.HOST, TrustedServer.PORT))
-        prot = reply[0].lower()
-        if prot == "a":
-            # sent by the central server when requested for a list of addresses
-            addresses = json.loads(reply[1:])["addresses"]
-            self.set_peers(addresses)
-        # print("Established connections with {} nodes".format(len(self._peers)))
-        data = {"address": self.address, "pubkey": self.pubkey}
-        Miner._send_message("n"+json.dumps(data), (TrustedServer.HOST, TrustedServer.PORT))
-
-    @staticmethod
-    def _send_message(msg, address):
-        """Send the message to a single node"""
-        try:
-            client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_sock.connect(address)
-            client_sock.sendall(msg.encode())
-        finally:
-            client_sock.close()
-
-    @staticmethod
-    def _send_request(msg, address):
-        """Send request to a single node"""
-        try:
-            client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_sock.connect(address)
-            client_sock.sendall(msg.encode())
-            reply = client_sock.recv(4096).decode()
-        finally:
-            client_sock.close()
-        return reply
-
-    def _broadcast_message(self, msg):
-        """Broadcast the message to peers"""
-        # Assume that peers are all nodes in the network
-        # (of course, not practical IRL since its not scalable)
-        if not self._peers:
-            raise Exception("Not connected to network.")
-        with ThreadPoolExecutor(max_workers=len(self._peers)) as executor:
-            for peer in self._peers:
-                executor.submit(Miner._send_message, msg, peer['address'])
 
     def create_transaction(self, receiver, amount, comment=""):
         """Create a new transaction"""
@@ -257,43 +210,6 @@ class Miner:
             return self._balance[identifier]
         finally:
             self._balance_lock.release()
-
-    def set_peers(self, peers):
-        """set peers on first discovery"""
-        for peer in peers:
-            peer["address"] = tuple(peer["address"])
-        self._peers = peers
-
-    def add_peer(self, peer):
-        """Add miner to peer list"""
-        peer["address"] = tuple(peer["address"])
-        if peer["address"] != self.address:
-            self._peers.append(peer)
-
-    @property
-    def privkey(self):
-        """Private key"""
-        return self._keypair[0]
-
-    @property
-    def pubkey(self):
-        """Public key"""
-        return self._keypair[1]
-
-    @property
-    def address(self):
-        """Address tuple with IP and port"""
-        return self._address
-
-    @property
-    def peers(self):
-        """List of peers"""
-        return self._peers
-
-    @property
-    def name(self):
-        """name"""
-        return self._name
 
     @property
     def balance(self):
@@ -473,6 +389,7 @@ if __name__ == "__main__":
     # Execute miner routine
     miner = Miner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
+    print("Miner established connection with {} peers".format(len(miner.peers)))
     while True:
         if miner.pubkey in miner.balance:
             if miner.balance[miner.pubkey] > 50:
