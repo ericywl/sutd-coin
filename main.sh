@@ -4,13 +4,12 @@ print_usage() { echo "$0 usage:" && grep " .)\ #" $0; exit 0; }
 IDS=()
 
 finish() {
-  for pid in $IDS
-    do
-      kill $pid
-    done
+  kill $(jobs -p)
   kill 0;
+  exit;
 }
 
+trap finish SIGHUP SIGINT SIGTERM
 while getopts ":hm:s:" flag; do
   case $flag in
     m) # Set miner count.
@@ -45,8 +44,6 @@ else
       done
   fi
 fi
-trap "exit" INT TERM
-trap finish EXIT
 
 echo "Press [CTRL+C] to stop.."
 while true
