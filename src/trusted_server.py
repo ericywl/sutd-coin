@@ -34,7 +34,7 @@ class TrustedServer:
 
     def broadcast_address(self, req):
         """Broadcast the new address to peers"""
-        with ThreadPoolExecutor(max_workers=len(self.addresses)) as executor:
+        with ThreadPoolExecutor(max_workers=5) as executor:
             for node in self.addresses:
                 executor.submit(TrustedServer._send_address,
                                 req, node['address'])

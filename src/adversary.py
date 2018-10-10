@@ -3,6 +3,7 @@ import sys
 import time
 import threading
 import json
+import queue
 # import random
 import ecdsa
 
@@ -15,21 +16,28 @@ from miner import Miner, _MinerListener, main_send_transaction
 class SelfishMiner(Miner):
     """☠️ ☠️ ☠️ ☠️ ☠️ ☠️ ☠️"""
 
-    def __init__(self, privkey, pubkey, address):
+    def _clsname(self):
+        return "SelfishMiner"
+
+    def __init__(self, privkey, pubkey, address, be_ass=True):
         super().__init__(privkey, pubkey, address, listen=False)
-        self.withheld_blocks = []
+        self._be_ass = be_ass
+        self.withheld_blocks = queue.Queue()
         # Listener
-        self._listener = _SelfishMinerListener(address, self)
+        if be_ass:
+            self._listener = _SelfishMinerListener(address, self)
+        else:
+            self._listener = _MinerListener(address, self)
         threading.Thread(target=self._listener.run).start()
 
     @classmethod
-    def new(cls, address):
+    def new(cls, address, be_ass):
         """Create new SelfishMiner instance"""
         signing_key = ecdsa.SigningKey.generate()
         verifying_key = signing_key.get_verifying_key()
         privkey = signing_key.to_string().hex()
         pubkey = verifying_key.to_string().hex()
-        return cls(privkey, pubkey, address)
+        return cls(privkey, pubkey, address, be_ass)
 
     def create_block(self):
         """Create a new block, but don't add it to blockchain"""
@@ -53,7 +61,11 @@ class SelfishMiner(Miner):
         blk_json = block.to_json()
         # Add block to blockchain (thread safe)
         self.add_block(blk_json)
-        self.withheld_blocks.append(block)
+        if self._be_ass:
+            self.withheld_blocks.put(block)
+        else:
+            self.broadcast_message("b" + json.dumps({"blk_json": blk_json}))
+            self.broadcast_message("h" + json.dumps(block.header))
         # Remove gathered transactions from pool and them to added pile
         self._added_tx_lock.acquire()
         try:
@@ -66,45 +78,51 @@ class SelfishMiner(Miner):
 
 class _SelfishMinerListener(_MinerListener):
     """☠️ ☠️ ☠️ ☠️ ☠️ ☠️ ☠️"""
+    def __init__(self, server_addr, worker):
+        super().__init__(server_addr, worker)
+        self._blk_queue = queue.Queue()
 
     def _push_blocks(self, num):
         """Push out num blocks from withheld blocks"""
-        if num > len(self._worker.withheld_blocks):
+        if num > self._worker.withheld_blocks.qsize():
             raise Exception("Not enough withheld blocks.")
         for _ in range(num):
-            fker = self._worker.withheld_blocks.pop(0)
+            fker = self._worker.withheld_blocks.get()
             b_msg = json.dumps({"blk_json": fker.to_json()})
             self._worker.broadcast_message("b" + b_msg)
             self._worker.broadcast_message("h" + json.dumps(fker.header))
             print(f"Block is pushed by selfish miner - {self._worker.name}")
-            time.sleep(0.5)
+            time.sleep(0.2)
 
-    def handle_client(self, client_sock):
-        """Handle receiving and sending"""
-        data = client_sock.recv(4096).decode()
-        prot = data[0].lower()
-        if prot == "b":
-            # Purposefully broadcast their own blocks when receive
-            if len(self._worker.withheld_blocks) >= 3:
-                self._push_blocks(2)
-            elif self._worker.withheld_blocks:
-                self._push_blocks(len(self._worker.withheld_blocks))
-            self._handle_block(data, client_sock)
+    def _handle_block(self, data):
+        # Receive new block
+        # Purposely broadcast own blocks if more than 1
+        delta = self._worker.withheld_blocks.qsize()
+        if delta == 0:
+            with self._worker._blockchain_lock:
+                for _ in range(self._blk_queue.qsize()):
+                    old_data = self._blk_queue.get()
+                    super()._handle_block(old_data)
+                super()._handle_block(data)
+        elif delta == 2:
+            self._push_blocks(2)
+            self._blk_queue.put(data)
         else:
-            super().handle_client_data(data, client_sock)
+            self._push_blocks(1)
+            self._blk_queue.put(data)
 
 
 def main():
     """Main function"""
     # Execute miner routine
-    miner = SelfishMiner.new(("127.0.0.1", int(sys.argv[1])))
+    miner = SelfishMiner.new(("127.0.0.1", int(sys.argv[1])), be_ass=False)
     miner.startup()
     print(f"SelfishMiner established connection with {len(miner.peers)} peers")
     time.sleep(5)
+    print(len(miner.peers))
     while True:
         # main_send_transaction(miner)
         miner.create_block()
-        print(miner.balance)
 
 
 if __name__ == "__main__":

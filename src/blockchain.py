@@ -150,7 +150,7 @@ class Blockchain:
         ]
         # Multiple chain with same length exist, use PoW to decide
         if len(block_hashes) != 1:
-            block_hashes = [max(block_hashes, key=self._pow)]
+            block_hashes = [min(block_hashes, key=self._pow)]
         blk_hash = block_hashes[0]
         blk = self._hash_block_map[blk_hash]
         # Remove all blocks beloging to forks

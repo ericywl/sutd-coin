@@ -140,6 +140,7 @@ class _NetNodeListener:
         """Handle receiving and sending"""
         data = recvall_helper(client_sock)
         self.handle_client_data(data, client_sock)
+        client_sock.close()
 
     def handle_client_data(self, data, client_sock):
         """To be overwritten when extending"""

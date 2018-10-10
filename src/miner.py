@@ -1,11 +1,9 @@
 """Miner class declaration file"""
-from concurrent.futures import ThreadPoolExecutor
 import time
 import sys
 import copy
 import json
 import random
-import socket
 import threading
 import ecdsa
 
@@ -20,9 +18,12 @@ from transaction import Transaction
 class Miner(NetNode):
     """Miner class"""
 
+    def _clsname(self):
+        return "Miner"
+
     def __init__(self, privkey, pubkey, address, listen=True):
         super().__init__(privkey, pubkey, address)
-        print("Starting Miner - {} on {}".format(self.name, address))
+        print(f"Starting {self._clsname()} - {self.name} on {address}")
 
         self._balance = {}
         self._blockchain = Blockchain.new()
@@ -267,32 +268,26 @@ class _MinerListener(_NetNodeListener):
             peer = json.loads(data[1:])
             # print(f"{self._worker.name} has added a node to their network.")
             self._worker.add_peer(peer)
-            client_sock.close()
         elif prot == "b":
-            self._handle_block(data, client_sock)
+            self._handle_block(data)
         elif prot == "t":
-            self._handle_transaction(data, client_sock)
+            self._handle_transaction(data)
         elif prot == "r":
             self._handle_transaction_proof(data, client_sock)
         elif prot == "x":
             self._handle_balance(data, client_sock)
-        else:
-            # either header or wrong message format
-            client_sock.close()
 
-    def _handle_block(self, data, client_sock):
+    def _handle_block(self, data):
         # Receive new block
         blk_json = json.loads(data[1:])["blk_json"]
-        client_sock.close()
         # Stop mining if new block is received
         self._worker.stop_mine.set()
         self._worker.add_block(blk_json)
         self._worker.stop_mine.clear()
 
-    def _handle_transaction(self, data, client_sock):
+    def _handle_transaction(self, data):
         # Receive new transaction
         tx_json = json.loads(data[1:])["tx_json"]
-        client_sock.close()
         self._worker.add_transaction(tx_json)
 
     def _handle_transaction_proof(self, data, client_sock):
@@ -312,13 +307,11 @@ class _MinerListener(_NetNodeListener):
                 "last_blk_hash": tup[2]
             })
         client_sock.sendall(msg.encode())
-        client_sock.close()
 
     def _handle_balance(self, data, client_sock):
         pubkey = json.loads(data[1:])["identifier"]
         bal = self._worker.get_balance(pubkey)
         client_sock.sendall(str(bal).encode())
-        client_sock.close()
 
 # def create_miner_network(num, starting_port):
 #     """Create a miner network of num miners where all miners are connected to
@@ -374,6 +367,7 @@ def main():
     miner.startup()
     print(f"Miner established connection with {len(miner.peers)} peers")
     time.sleep(5)
+    print(len(miner.peers))
     while True:
         # main_send_transaction(miner)
         miner.create_block()
