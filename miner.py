@@ -396,7 +396,7 @@ if __name__ == "__main__":
     # Execute miner routine
     miner = Miner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
-    time.sleep(5)
+    # time.sleep(5)
     print("Miner established connection with {} peers".format(len(miner.peers)))
     while True:
         # if miner.pubkey in miner.balance:
@@ -405,3 +405,4 @@ if __name__ == "__main__":
         #         miner.create_transaction(miner.peers[peer_index]["pubkey"], 50)
         # time.sleep(5)
         miner.create_block()
+        print(miner.balance, miner.balance[miner.pubkey])
