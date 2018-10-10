@@ -4,6 +4,7 @@ import time
 import threading
 import json
 import ecdsa
+import random
 
 import algo
 
@@ -101,6 +102,5 @@ if __name__ == "__main__":
         #     if miner.balance[miner.pubkey] > 50:
         #         peer_index = random.randint(0, len(miner.peers) - 1)
         #         miner.create_transaction(miner.peers[peer_index]["pubkey"], 50)
-        # time.sleep(5)
         miner.create_block()
         print(miner.balance, miner.balance[miner.pubkey])
