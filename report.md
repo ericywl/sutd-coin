@@ -12,9 +12,9 @@ on the other. This means that the tested miner has slightly higher resource
 priority in both cases. In real world, this would mean that the tested miner 
 has slightly higher computational power. Results are collected after the 
 blockchain reach approximately length of 100 ie. the longest chain reaches 
-about 100 blocks.
+about 100 blocks. The calculated percentages are rounded to nearest 0.5.
 
-| Runs      | 1      | 2      | 3       |
-|-----------|--------|--------|---------|
-| Selfish   | 62%    | 65%    | 66%     |
-| Normal    | 56%    | 50%    | 53.5%   |
+| Runs      | 1      | 2      | 3       | 4     |
+|-----------|--------|--------|---------|-------|
+| Normal    | 56%    | 50%    | 53.5%   | 55%   |
+| Selfish   | 62%    | 65%    | 66%     | 66%   |
