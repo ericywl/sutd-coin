@@ -4,6 +4,8 @@ import threading
 import socket
 import json
 
+import algo
+
 
 class TrustedServer:
     """
@@ -73,7 +75,7 @@ class _TrustedServerListener:
 
     def handle_client(self, client_sock):
         """Handle receiving and sending"""
-        data = client_sock.recv(4096).decode()
+        data = client_sock.recv(algo.BUFSIZE).decode()
         prot = data[0].lower()
         if prot == "a":
             # Receive a request for addresses
