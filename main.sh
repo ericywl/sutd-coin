@@ -56,7 +56,7 @@ else
       done
 
     if [ -n "$selfish_count" ]; then
-      sudo nice -n -3 python src/adversary.py $((33345)) &
+      sudo nice -n -3 python src/selfish.py $((33345)) &
       IDS+=($!)
     fi
   fi
