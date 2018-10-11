@@ -4,23 +4,14 @@ import json
 import socket
 import threading
 
+import algo
 from monsterurl import get_monster
 from trusted_server import TrustedServer
 
 
-def recvall_helper(sock, bufsize=4096):
-    """Helper function to receive all bytes from socket"""
-    fragments = []
-    while True:
-        frgm = sock.recv(bufsize)
-        if not frgm:
-            break
-        fragments.append(frgm.decode())
-    return "".join(fragments)
-
-
 class NetNode:
     """NetNode class"""
+
     def __init__(self, privkey, pubkey, address):
         self._keypair = (privkey, pubkey)
         self._address = address
@@ -92,14 +83,29 @@ class NetNode:
             for peer in self._peers:
                 executor.submit(NetNode._send_message, msg, peer['address'])
 
+    def broadcast_request(self, req):
+        """Broadcast the request to peers"""
+        if not self._peers:
+            raise Exception("Not connected to network.")
+        executor = ThreadPoolExecutor(max_workers=5)
+        futures = [
+            executor.submit(NetNode._send_request, req, peer['address'])
+            for peer in self._peers
+        ]
+        executor.shutdown(wait=True)
+        replies = [future.result() for future in futures]
+        return replies
+
+    # STATIC METHODS
+
     @staticmethod
-    def _send_request(req, addr):
+    def _send_request(req, address):
         """Send request to a single node"""
         try:
             client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_sock.connect(addr)
+            client_sock.connect(address)
             client_sock.sendall(req.encode())
-            reply = recvall_helper(client_sock)
+            reply = client_sock.recv(algo.BUFSIZE).decode()
         finally:
             client_sock.close()
         return reply
@@ -138,7 +144,7 @@ class _NetNodeListener:
 
     def handle_client(self, client_sock):
         """Handle receiving and sending"""
-        data = recvall_helper(client_sock)
+        data = client_sock.recv(algo.BUFSIZE).decode()
         self.handle_client_data(data, client_sock)
 
     def handle_client_data(self, data, client_sock):

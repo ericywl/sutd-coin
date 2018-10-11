@@ -14,6 +14,8 @@ class Blockchain:
         self._hash_block_map = hash_block_map
         # Dictionary of last block hash to chain length
         self._endhash_clen_map = endhash_clen_map
+        # Orphan blocks
+        self._hash_orphan_map = {}
 
     @classmethod
     def new(cls):
@@ -39,10 +41,17 @@ class Blockchain:
 
     def add(self, block):
         """Add new block to chain"""
-        # Verify block
-        self.verify(block)
+        # Check previous block exist in blocks list
         curr_hash = algo.hash1_dic(block.header)
         prev_hash = block.header["prev_hash"]
+        if prev_hash not in self._hash_block_map:
+            if prev_hash not in self._hash_orphan_map:
+                self._hash_orphan_map[curr_hash] = block
+                return
+            old_block = self._hash_orphan_map.pop(prev_hash)
+            self.add(old_block)
+        # Verify block
+        self.verify(block)
         self._hash_block_map[curr_hash] = block
         # If the previous block is one of the last blocks,
         # replace the previous hash out with the current one
@@ -55,15 +64,6 @@ class Blockchain:
         # and add the current block hash into dictionary
         else:
             self._endhash_clen_map[curr_hash] = self._get_chain_length(block)
-
-    def _check_prev_exist(self, prev_hash):
-        """Check block with prev_hash exist in list"""
-        try:
-            self._hash_block_map[prev_hash]
-        except KeyError:
-            return False
-        else:
-            return True
 
     def _check_prev_valid(self, prev_hash):
         """Check if previous block is valid"""
@@ -88,9 +88,6 @@ class Blockchain:
 
     def verify(self, block):
         """Verify the block"""
-        # Check previous block exist in blocks list
-        if not self._check_prev_exist(block.header["prev_hash"]):
-            raise Exception("Previous block does not exist.")
         # Check that previous block is valid
         if not self._check_prev_valid(block.header["prev_hash"]):
             raise Exception("Previous block is invalid.")
@@ -190,8 +187,11 @@ class Blockchain:
                 if converted_tx.receiver not in balance:
                     balance[converted_tx.receiver] = 0
                 # Coinbase transaction
-                if i == 0 and converted_tx.sender == converted_tx.receiver:
-                    balance[converted_tx.receiver] += converted_tx.amount
+                if i == 0:
+                    if converted_tx.sender == converted_tx.receiver:
+                        balance[converted_tx.receiver] += converted_tx.amount
+                    else:
+                        raise Exception("No coinbase transaction.")
                 # Normal transaction
                 else:
                     balance[converted_tx.sender] -= converted_tx.amount

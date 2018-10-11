@@ -21,7 +21,7 @@ class SPVClient(NetNode):
 
     def __init__(self, privkey, pubkey, address):
         super().__init__(privkey, pubkey, address)
-        print("Starting SPV Client - {}".format(self.name))
+        print(f"Starting SPVClient - {self.name} on {address}")
 
         self._hash_transactions_map = {}
         genesis = Block.get_genesis()
@@ -106,13 +106,13 @@ class SPVClient(NetNode):
     def request_balance(self):
         """Request balance from network"""
         req = "x" + json.dumps({"identifier": self.pubkey})
-        replies = self._broadcast_request(req)
+        replies = self.broadcast_request(req)
         return int(SPVClient._process_replies(replies))
 
     def verify_transaction_proof(self, tx_hash):
         """Verify that transaction is in blockchain"""
         req = "r" + json.dumps({"tx_hash": tx_hash})
-        replies = self._broadcast_request(req)
+        replies = self.broadcast_request(req)
         valid_reply = SPVClient._process_replies(replies)
         blk_hash = valid_reply["blk_hash"]
         proof = valid_reply["proof"]
@@ -138,20 +138,7 @@ class SPVClient(NetNode):
             self._trans_lock.release()
         return True
 
-    # PRIVATE AND STATIC METHODS
-
-    def _broadcast_request(self, req):
-        """Broadcast the request to peers"""
-        if not self._peers:
-            raise Exception("Not connected to network.")
-        executor = ThreadPoolExecutor(max_workers=5)
-        futures = [
-            executor.submit(SPVClient._send_request, req, peer['address'])
-            for peer in self._peers
-        ]
-        executor.shutdown(wait=True)
-        replies = [future.result() for future in futures]
-        return replies
+    # STATIC METHODS
 
     @staticmethod
     def _process_replies(replies):
@@ -197,27 +184,31 @@ class _SPVClientListener(_NetNodeListener):
 
 def main():
     """Main function"""
-    spv_client = SPVClient.new(("127.0.0.1", int(sys.argv[1])))
-    spv_client.startup()
-    spv_name = spv_client.name
+    spv = SPVClient.new(("127.0.0.1", int(sys.argv[1])))
+    spv.startup()
+    print(f"SPVClient established connection with {len(spv.peers)} peers")
+    spv_name = spv.name
     time.sleep(5)
-    # Request transaction proof
-    transactions = spv_client.transactions
-    if transactions:
-        i = random.randint(0, len(transactions) - 1)
-        tx_hash = algo.hash1(transactions[i])
-        tx_in_bc = spv_client.verify_transaction_proof(tx_hash)
-        print(f"SPV {spv_name} check {tx_hash} in blockchain: {tx_in_bc}")
-    time.sleep(1)
-    # Create new transaction
-    balance = spv_client.request_balance()
-    if balance > 10:
-        peer_index = random.randint(0, len(spv_client.peers) - 1)
-        chosen_peer = spv_client.peers[peer_index]
-        created_tx = spv_client.create_transaction(chosen_peer.pubkey, 10)
-        tx_json = created_tx.to_json()
-        tx_hash = algo.hash1(tx_json)
-        print(f"SPV {spv_name} sent {tx_hash} to {chosen_peer['pubkey']}")
+    while True:
+        print("fuck")
+        # Request transaction proof
+        transactions = spv.transactions
+        if transactions:
+            print("trans")
+            i = random.randint(0, len(transactions) - 1)
+            tx_hash = algo.hash1(transactions[i])
+            tx_in_bc = spv.verify_transaction_proof(tx_hash)
+            print(f"SPV {spv_name} check {tx_hash} in blockchain: {tx_in_bc}")
+        time.sleep(1)
+        # Create new transaction
+        balance = spv.request_balance()
+        if balance > 10:
+            peer_index = random.randint(0, len(spv.peers) - 1)
+            chosen_peer = spv.peers[peer_index]
+            created_tx = spv.create_transaction(chosen_peer.pubkey, 10)
+            tx_json = created_tx.to_json()
+            tx_hash = algo.hash1(tx_json)
+            print(f"SPV {spv_name} sent {tx_hash} to {chosen_peer['pubkey']}")
 
 
 if __name__ == "__main__":
