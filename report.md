@@ -10,11 +10,13 @@ more chaotic, making it hard to interpret.
 The tests were run with `nice -3` on the tested miner and `nice 0` (default) 
 on the other. This means that the tested miner has slightly higher resource
 priority in both cases. In real world, this would mean that the tested miner 
-has slightly higher computational power. Results are collected after the 
-blockchain reach approximately length of 100 ie. the longest chain reaches 
-about 100 blocks. The calculated percentages are rounded to nearest 0.5.
+has slightly higher computational power and should therefore win the
+competition more often than not even without selfish mining. Results are 
+collected after the blockchain reach approximately length of 100 ie. the 
+longest chain reaches about 100 blocks. The calculated percentages are 
+rounded to nearest 0.5.
 
-| Runs      | 1      | 2      | 3       | 4     |
-|-----------|--------|--------|---------|-------|
-| Normal    | 56%    | 50%    | 53.5%   | 55%   |
-| Selfish   | 62%    | 65%    | 66%     | 66%   |
+| Runs                      | 1      | 2      | 3       | 4     | 5     |
+|---------------------------|--------|--------|---------|-------|-------|
+| Normal Mining Reward %    | 56%    | 50%    | 53.5%   | 55%   | 52%   |
+| Selfish Mining Reward %   | 62%    | 65%    | 66%     | 66%   | 63%   |
