@@ -35,17 +35,19 @@ class SelfishMiner(Miner):
         last_blk = self._update()
         gathered_tx = self._gather_transactions()
         block = self._mine_new_block(last_blk.header, gathered_tx)
-        blk_json = block.to_json()
-        # Add block to blockchain (thread safe)
-        self.add_block(blk_json)
-        if BE_SELFISH:
-            self.withheld_blocks.put(block)
-        else:
-            self.broadcast_message("b" + json.dumps({"blk_json": blk_json}))
-            self.broadcast_message("h" + json.dumps(block.header))
-        # Remove gathered transactions from pool and them to added pile
-        with self._added_tx_lock:
-            self._added_transactions |= set(gathered_tx)
+        if block is not None:
+            blk_json = block.to_json()
+            # Add block to blockchain (thread safe)
+            self.add_block(blk_json)
+            if BE_SELFISH:
+                self.withheld_blocks.put(block)
+            else:
+                self.broadcast_message(
+                    "b" + json.dumps({"blk_json": blk_json}))
+                self.broadcast_message("h" + json.dumps(block.header))
+            # Remove gathered transactions from pool and them to added pile
+            with self._added_tx_lock:
+                self._added_transactions |= set(gathered_tx)
         self._update()
         print(f"{self._clsname()} {self.name} created a block.")
         return block
@@ -59,8 +61,7 @@ class SelfishMiner(Miner):
             b_msg = json.dumps({"blk_json": fker.to_json()})
             self.broadcast_message("b" + b_msg)
             self.broadcast_message("h" + json.dumps(fker.header))
-            print(f"Block is pushed by selfish miner - {self._worker.name}")
-            time.sleep(0.5)
+            print(f"Block is pushed by selfish miner - {self.name}")
 
 
 class _SelfishMinerListener(_MinerListener):
@@ -72,6 +73,7 @@ class _SelfishMinerListener(_MinerListener):
         if prot == "b":
             # Purposefully broadcast their own blocks when receive
             qlen = self._worker.withheld_blocks.qsize()
+            print(qlen)
             if qlen >= 3:
                 self._worker.push_blocks(2)
             elif qlen != 0:

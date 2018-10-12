@@ -123,16 +123,17 @@ class Miner(NetNode):
         last_blk = self._update()
         gathered_tx = self._gather_transactions()
         block = self._mine_new_block(last_blk.header, gathered_tx)
-        blk_json = block.to_json()
-        # Add block to blockchain (thread safe)
-        self.add_block(blk_json)
-        # Broadcast block and the header.
-        # b is only taken by miners while h is taken by spv_clients
-        self.broadcast_message("b" + json.dumps({"blk_json": blk_json}))
-        self.broadcast_message("h" + json.dumps(block.header))
-        # Remove gathered transactions from pool and them to added pile
-        with self._added_tx_lock:
-            self._added_transactions |= set(gathered_tx)
+        if block is not None:
+            blk_json = block.to_json()
+            # Add block to blockchain (thread safe)
+            self.add_block(blk_json)
+            # Broadcast block and the header.
+            # b is only taken by miners while h is taken by spv_clients
+            self.broadcast_message("b" + json.dumps({"blk_json": blk_json}))
+            self.broadcast_message("h" + json.dumps(block.header))
+            # Remove gathered transactions from pool and them to added pile
+            with self._added_tx_lock:
+                self._added_transactions |= set(gathered_tx)
         self._update()
         print(f"{self._clsname()} {self.name} created a block.")
         return block
@@ -344,9 +345,9 @@ def main():
     while True:
         # miner_main_send_tx(miner)
         blk = miner.create_block()
-        time.sleep(1)
-        if blk:
-            print(miner.blockchain.endhash_clen_map)
+        # time.sleep(1)
+        # if blk:
+        #     print(miner.blockchain.endhash_clen_map)
 
 
 if __name__ == "__main__":
