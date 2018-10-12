@@ -16,7 +16,7 @@ collected after the blockchain reach approximately length of 100 ie. the
 longest chain reaches about 100 blocks. The calculated percentages are 
 rounded to nearest 0.5.
 
-| Runs                      | 1      | 2      | 3       | 4     | 5     |
-|---------------------------|--------|--------|---------|-------|-------|
-| Normal Mining Reward %    | 56%    | 50%    | 53.5%   | 55%   | 52%   |
-| Selfish Mining Reward %   | 62%    | 65%    | 66%     | 66%   | 63%   |
+| Runs                      | 1      | 2      | 3       | 4     | 5     | 6     |
+|---------------------------|--------|--------|---------|-------|-------|-------|
+| Normal Mining Reward %    | 56%    | 50%    | 53.5%   | 55%   | 52%   | 51%   |
+| Selfish Mining Reward %   | 62%    | 65%    | 66%     | 66%   | 63%   | 71%   |
