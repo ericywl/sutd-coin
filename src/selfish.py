@@ -10,14 +10,11 @@ import ecdsa
 from miner import Miner, _MinerListener, miner_main_send_tx
 
 
-BE_SELFISH = True
+BE_SELFISH = False
 
 
 class SelfishMiner(Miner):
     """☠️ ☠️ ☠️ ☠️ ☠️ ☠️ ☠️"""
-
-    def _clsname(self):
-        return "SelfishMiner"
 
     def __init__(self, privkey, pubkey, address):
         super().__init__(privkey, pubkey, address, listen=False)
@@ -29,29 +26,6 @@ class SelfishMiner(Miner):
             self._listener = _MinerListener(address, self)
         threading.Thread(target=self._listener.run).start()
 
-    def create_block(self):
-        """Create a new block"""
-        # Update blockchain and balance state (thread safe)
-        last_blk = self._update()
-        gathered_tx = self._gather_transactions()
-        block = self._mine_new_block(last_blk.header, gathered_tx)
-        if block is not None:
-            blk_json = block.to_json()
-            # Add block to blockchain (thread safe)
-            self.add_block(blk_json)
-            if BE_SELFISH:
-                self.withheld_blocks.put(block)
-            else:
-                self.broadcast_message(
-                    "b" + json.dumps({"blk_json": blk_json}))
-                self.broadcast_message("h" + json.dumps(block.header))
-            # Remove gathered transactions from pool and them to added pile
-            with self._added_tx_lock:
-                self._added_transactions |= set(gathered_tx)
-        self._update()
-        print(f"{self._clsname()} {self.name} created a block.")
-        return block
-
     def push_blocks(self, num):
         """Push out num blocks from withheld blocks"""
         if num > self.withheld_blocks.qsize():
@@ -61,7 +35,13 @@ class SelfishMiner(Miner):
             b_msg = json.dumps({"blk_json": fker.to_json()})
             self.broadcast_message("b" + b_msg)
             self.broadcast_message("h" + json.dumps(fker.header))
-            print(f"Block is pushed by selfish miner - {self.name}")
+            print(f"Block pushed by {self.__class__.__name__} - {self.name}")
+
+    def _broadcast_block(self, block):
+        if BE_SELFISH:
+            self.withheld_blocks.put(block)
+        else:
+            super()._broadcast_block(block)
 
 
 class _SelfishMinerListener(_MinerListener):
@@ -73,7 +53,6 @@ class _SelfishMinerListener(_MinerListener):
         if prot == "b":
             # Purposefully broadcast their own blocks when receive
             qlen = self._worker.withheld_blocks.qsize()
-            print(qlen)
             if qlen >= 3:
                 self._worker.push_blocks(2)
             elif qlen != 0:

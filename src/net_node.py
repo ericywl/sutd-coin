@@ -17,6 +17,8 @@ class NetNode:
         self._address = address
         self._peers = []
         self._name = get_monster()
+        clsname = self.__class__.__name__
+        print(f"Starting {clsname} - {self.name} on {address}")
 
     @property
     def name(self):

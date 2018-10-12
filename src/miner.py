@@ -20,13 +20,8 @@ from transaction import Transaction
 class Miner(NetNode):
     """Miner class"""
 
-    def _clsname(self):
-        return "Miner"
-
     def __init__(self, privkey, pubkey, address, listen=True):
         super().__init__(privkey, pubkey, address)
-        print(f"Starting {self._clsname()} - {self.name} on {address}")
-
         self._balance = {}
         self._blockchain = Blockchain.new()
         self._added_transactions = set()
@@ -128,14 +123,12 @@ class Miner(NetNode):
             # Add block to blockchain (thread safe)
             self.add_block(blk_json)
             # Broadcast block and the header.
-            # b is only taken by miners while h is taken by spv_clients
-            self.broadcast_message("b" + json.dumps({"blk_json": blk_json}))
-            self.broadcast_message("h" + json.dumps(block.header))
+            self._broadcast_block(block)
             # Remove gathered transactions from pool and them to added pile
             with self._added_tx_lock:
                 self._added_transactions |= set(gathered_tx)
         self._update()
-        print(f"{self._clsname()} {self.name} created a block.")
+        print(f"{self.__class__.__name__} {self.name} created a block.")
         return block
 
     def add_block(self, blk_json):
@@ -182,6 +175,12 @@ class Miner(NetNode):
             tx_json = self.tx_queue.get()
             with self._all_tx_lock:
                 self.add_transaction(tx_json)
+
+    def _broadcast_block(self, block):
+        # b is only taken by miners while h is taken by spv_clients
+        blk_json = block.to_json()
+        self.broadcast_message("b" + json.dumps({"blk_json": blk_json}))
+        self.broadcast_message("h" + json.dumps(block.header))
 
     def _update(self):
         """Update miner's blockchain, balance state and transactions"""

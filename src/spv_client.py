@@ -21,8 +21,6 @@ class SPVClient(NetNode):
 
     def __init__(self, privkey, pubkey, address):
         super().__init__(privkey, pubkey, address)
-        print(f"Starting SPVClient - {self.name} on {address}")
-
         self._hash_transactions_map = {}
         genesis = Block.get_genesis()
         genesis_hash = algo.hash1_dic(genesis.header)

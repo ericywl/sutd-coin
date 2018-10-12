@@ -15,7 +15,7 @@ competition more often than not even without selfish mining. Results are
 collected after the blockchain reach length of 100 ie. the longest chain 
 reaches 100 blocks.
 
-| Runs                      | 1      | 2      | 3       | 4     | 5     | 6     | 7     |
-|---------------------------|--------|--------|---------|-------|-------|-------|-------|
-| Normal Mining Reward %    | 56%    | 50%    | 54%     | 55%   | 52%   | 51%   | 51%   |
-| Selfish Mining Reward %   | 62%    | 65%    | 66%     | 66%   | 63%   | 71%   | 63%   |
+| Runs                      | 1    | 2    | 3    | 4    | 5    | 6    | 7    | 8    |
+|---------------------------|------|------|------|------|------|------|------|------|
+| Normal Mining Reward %    | 56%  | 50%  | 54%  | 55%  | 52%  | 51%  | 51%  | 52%  |
+| Selfish Mining Reward %   | 62%  | 65%  | 66%  | 66%  | 63%  | 71%  | 63%  | 67%  |
