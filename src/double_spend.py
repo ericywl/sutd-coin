@@ -7,6 +7,11 @@ from spv_client import SPVClient
 from miner import Miner
 
 
+class DoubleSpendMiner(Miner):
+    """DoubleSpendMiner class"""
+
+
+
 def map_pubkey_to_name(obs):
     """Map pubkey to name in balance"""
     name_balance = {}
@@ -30,10 +35,16 @@ def main():
     bad_miner = Miner.new(("localhost", 32346))
 
     normal_miner.startup()
+    time.sleep(1)
     vendor.startup()
+    time.sleep(1)
     bad_spv.startup()
+    time.sleep(1)
     bad_miner.startup()
     time.sleep(3)
+
+    print(len(normal_miner.peers), len(vendor.peers), len(bad_spv.peers),
+          len(bad_miner.peers))
 
     # First block
     bad_miner.create_block()
@@ -47,23 +58,41 @@ def main():
     bad_miner.create_block()
     time.sleep(1)
     print("Bad Miner gives bad SPV money:")
-    print(map_pubkey_to_name(bad_miner), end="\n\n")
+    print(map_pubkey_to_name(bad_miner))
 
     # Bad SPV spend on vendor
-    vendor_tx = bad_spv.create_transaction(vendor.pubkey, 50)
+    vendor_tx = bad_spv.create_transaction(vendor.pubkey, 50, "Buy")
     vtx_hash = algo.hash1(vendor_tx.to_json())
     time.sleep(1)
-    normal_miner.create_block()
+    blk = normal_miner.create_block()
     time.sleep(1)
-    print("Bad SPV spent all on vendor:")
-    print(map_pubkey_to_name(normal_miner), end="\n\n")
+    print("\nBad SPV spent all on vendor:")
+    print(map_pubkey_to_name(normal_miner))
 
     # Vendor verify transaction
     result = vendor.verify_transaction_proof(vtx_hash)
-    print(f"Vendor verify transaction: {result}")
-    print(f"Vendor send bad SPV product")
+    print(f"\nVendor verify transaction: {result}")
+    print(f"Vendor send bad SPV product\n")
+    print(f"Current blockchain:\n{normal_miner.blockchain.endhash_clen_map}")
 
     # Bad Miner should mine faster at fork and reverse the transaction
+    print(f"Bad SPV send supposedly spent money to bad Miner\n")
+    bad_spv.create_transaction(bad_miner.pubkey, 50)
+
+    # Remove vendor transaction from bad Miner pool (only temporary solution)
+    bad_miner._all_transactions.remove(vendor_tx.to_json())
+    blk = bad_miner.create_block(blk.header["prev_hash"])
+    print("Bad Miner creating fork (exclude vendor transaction):")
+    print(normal_miner.blockchain.endhash_clen_map)
+
+    # Extend fork such that vendor transaction is reversed
+    bad_miner.create_block(algo.hash1_dic(blk.header))
+    print("\nBad Miner further extend fork:")
+    print(normal_miner.blockchain.endhash_clen_map)
+
+    # Vendor try to verify again
+    result = vendor.verify_transaction_proof(vtx_hash)
+    print(f"\nVendor verify transaction: {result}")
 
 
 if __name__ == "__main__":

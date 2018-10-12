@@ -30,11 +30,11 @@ class Miner(NetNode):
         self.block_queue = queue.Queue()
         self.tx_queue = queue.Queue()
         # Thread locks and events
-        self._blockchain_lock = threading.RLock()
-        self._all_tx_lock = threading.RLock()
-        self._added_tx_lock = threading.RLock()
-        self._balance_lock = threading.RLock()
-        self._stop_mine = threading.Event()
+        self.blockchain_lock = threading.RLock()
+        self.all_tx_lock = threading.RLock()
+        self.added_tx_lock = threading.RLock()
+        self.balance_lock = threading.RLock()
+        self.stop_mine = threading.Event()
         # Listener
         if listen:
             self._listener = _MinerListener(address, self)
@@ -52,43 +52,46 @@ class Miner(NetNode):
     @property
     def balance(self):
         """Copy of balance state"""
-        with self._balance_lock:
+        with self.balance_lock:
             balance_copy = copy.deepcopy(self._balance)
         return balance_copy
 
     @property
     def blockchain(self):
         """Copy of blockchain"""
-        with self._blockchain_lock:
+        self._clear_queue()
+        with self.blockchain_lock:
             blkchain_copy = copy.deepcopy(self._blockchain)
         return blkchain_copy
 
     @property
     def pending_transactions(self):
         """Copy of pending transactions"""
-        self._added_tx_lock.acquire()
-        self._all_tx_lock.acquire()
+        self._clear_queue()
+        self.added_tx_lock.acquire()
+        self.all_tx_lock.acquire()
         try:
             pending_tx = self._all_transactions - self._added_transactions
         finally:
-            self._added_tx_lock.release()
-            self._all_tx_lock.release()
+            self.added_tx_lock.release()
+            self.all_tx_lock.release()
         return copy.deepcopy(pending_tx)
 
     @property
     def added_transactions(self):
         """Copy of added transactions"""
-        self._added_tx_lock.acquire()
-        try:
+        self._clear_queue()
+        with self.added_tx_lock:
             added_tx_copy = copy.deepcopy(self._added_transactions)
-        finally:
-            self._added_tx_lock.release()
         return added_tx_copy
 
     @property
-    def stop_mine(self):
-        """Threading Event to stop mining"""
-        return self._stop_mine
+    def all_transactions(self):
+        """Copy of all transactions"""
+        self._clear_queue()
+        with self.all_tx_lock:
+            all_tx_copy = copy.deepcopy(self._all_transactions)
+        return all_tx_copy
 
     def create_transaction(self, receiver, amount, comment=""):
         """Create a new transaction"""
@@ -106,16 +109,18 @@ class Miner(NetNode):
         recv_tx = Transaction.from_json(tx_json)
         if not recv_tx.verify():
             raise Exception("New transaction failed signature verification.")
-        with self._all_tx_lock:
+        with self.all_tx_lock:
             if tx_json in self._all_transactions:
                 print(f"{self.name} - Transaction already exist in pool.")
                 return
             self._all_transactions.add(tx_json)
 
-    def create_block(self):
+    def create_block(self, prev_hash=None):
         """Create a new block"""
         # Update blockchain and balance state (thread safe)
-        last_blk = self._update()
+        prev_blk = None if prev_hash is None else \
+            self._blockchain.hash_block_map[prev_hash]
+        last_blk = self._update(prev_blk)
         gathered_tx = self._gather_transactions()
         block = self._mine_new_block(last_blk.header, gathered_tx)
         if block is not None:
@@ -125,7 +130,7 @@ class Miner(NetNode):
             # Broadcast block and the header.
             self._broadcast_block(block)
             # Remove gathered transactions from pool and them to added pile
-            with self._added_tx_lock:
+            with self.added_tx_lock:
                 self._added_transactions |= set(gathered_tx)
         self._update()
         print(f"{self.__class__.__name__} {self.name} created a block.")
@@ -134,12 +139,12 @@ class Miner(NetNode):
     def add_block(self, blk_json):
         """Add new block to the blockchain"""
         block = Block.from_json(blk_json)
-        with self._blockchain_lock:
+        with self.blockchain_lock:
             self._blockchain.add(block)
 
     def get_transaction_proof(self, tx_hash):
         """Get proof of transaction given transaction hash"""
-        with self._blockchain_lock:
+        with self.blockchain_lock:
             last_blk = self._blockchain.resolve()
             res = self._blockchain.get_transaction_proof_in_fork(
                 tx_hash, last_blk)
@@ -151,7 +156,7 @@ class Miner(NetNode):
     def get_balance(self, identifier):
         """Get balance given identifier ie. pubkey"""
         self._update()
-        with self._balance_lock:
+        with self.balance_lock:
             if identifier not in self._balance:
                 return 0
             return self._balance[identifier]
@@ -161,7 +166,7 @@ class Miner(NetNode):
     def _mine_new_block(self, last_blk_hdr, gathered_tx):
         # Mine new block
         prev_hash = algo.hash1_dic(last_blk_hdr)
-        block = Block.new(prev_hash, gathered_tx, self._stop_mine)
+        block = Block.new(prev_hash, gathered_tx, self.stop_mine)
         if block is None:
             # Mining stopped because a new block is received
             return None
@@ -173,7 +178,7 @@ class Miner(NetNode):
             self.add_block(blk_json)
         while self.tx_queue.qsize() > 0:
             tx_json = self.tx_queue.get()
-            with self._all_tx_lock:
+            with self.all_tx_lock:
                 self.add_transaction(tx_json)
 
     def _broadcast_block(self, block):
@@ -182,34 +187,35 @@ class Miner(NetNode):
         self.broadcast_message("b" + json.dumps({"blk_json": blk_json}))
         self.broadcast_message("h" + json.dumps(block.header))
 
-    def _update(self):
+    def _update(self, last_blk=None):
         """Update miner's blockchain, balance state and transactions"""
         self._clear_queue()
-        self._blockchain_lock.acquire()
-        self._added_tx_lock.acquire()
-        self._balance_lock.acquire()
+        self.blockchain_lock.acquire()
+        self.added_tx_lock.acquire()
+        self.balance_lock.acquire()
         try:
             # Resolve blockchain to get last block
-            last_blk = self._blockchain.resolve()
+            if last_blk is None:
+                last_blk = self._blockchain.resolve()
             # Update added transactions with transactions in blockchain
             blockchain_tx = self._blockchain.get_transactions_by_fork(last_blk)
             self._added_transactions = set(blockchain_tx)
             # Update balance state with latest
             self._balance = self._blockchain.get_balance_by_fork(last_blk)
         finally:
-            self._blockchain_lock.release()
-            self._added_tx_lock.release()
-            self._balance_lock.release()
-        self._stop_mine.clear()
+            self.blockchain_lock.release()
+            self.added_tx_lock.release()
+            self.balance_lock.release()
+        self.stop_mine.clear()
         return last_blk
 
     def _check_transactions_balance(self, transactions):
         """Check balance state if transactions were applied"""
-        self._balance_lock.acquire()
+        self.balance_lock.acquire()
         try:
             balance = copy.deepcopy(self._balance)
         finally:
-            self._balance_lock.release()
+            self.balance_lock.release()
         for tx_json in transactions:
             recv_tx = Transaction.from_json(tx_json)
             # Sender must exist so if it doesn't, return false
@@ -229,8 +235,8 @@ class Miner(NetNode):
     def _gather_transactions(self):
         """Gather transactions that are valid from pending"""
         # Get a set of random transactions from pending transactions
-        self._added_tx_lock.acquire()
-        self._all_tx_lock.acquire()
+        self.added_tx_lock.acquire()
+        self.all_tx_lock.acquire()
         try:
             pending_tx = self._all_transactions - self._added_transactions
             # Put in coinbase transaction
@@ -256,8 +262,8 @@ class Miner(NetNode):
                     break
             gathered_transactions.extend(trans_sample)
         finally:
-            self._added_tx_lock.release()
-            self._all_tx_lock.release()
+            self.added_tx_lock.release()
+            self.all_tx_lock.release()
         return gathered_transactions
 
 
@@ -297,7 +303,11 @@ class _MinerListener(_NetNodeListener):
         # Receive new transaction
         tx_json = json.loads(data[1:])["tx_json"]
         client_sock.close()
-        self._worker.tx_queue.put(tx_json)
+        if self._worker.all_tx_lock.acquire(False):
+            self._worker.add_transaction(tx_json)
+            self._worker.all_tx_lock.release()
+        else:
+            self._worker.tx_queue.put(tx_json)
 
     def _handle_transaction_proof(self, data, client_sock):
         # Process request for transaction proof
