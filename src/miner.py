@@ -242,7 +242,6 @@ class Miner(NetNode):
         self.added_tx_lock.acquire()
         self.all_tx_lock.acquire()
         try:
-            tx_pool = self._all_transactions - self._added_transactions
             # Put in coinbase transaction
             coinbase_tx = Transaction.new(
                 sender=self.pubkey,

@@ -16,14 +16,15 @@ class DoubleSpendMiner(Miner):
 
     def exclude_transaction(self, tx_hash):
         """Add transaction to exclusion list given transaction hash"""
-        self._update()
+        self._clear_queue()
         for t_json in self._all_transactions:
             if algo.hash1(t_json) == tx_hash:
                 self._excluded_transactions.add(t_json)
+                return True
         raise Exception("Transaction does not exist in transactions")
 
     def _get_tx_pool(self):
-        return super()._get_tx_pool - self._excluded_transactions
+        return super()._get_tx_pool() - self._excluded_transactions
 
 
 def map_pubkey_to_name(obs):
@@ -46,7 +47,7 @@ def test():
     normal_miner = Miner.new(("localhost", 12345))
     vendor = SPVClient.new(("localhost", 22345))
     bad_spv = SPVClient.new(("localhost", 32345))
-    bad_miner = Miner.new(("localhost", 32346))
+    bad_miner = DoubleSpendMiner.new(("localhost", 32346))
 
     normal_miner.startup()
     time.sleep(1)
@@ -94,7 +95,7 @@ def test():
     bad_spv.create_transaction(bad_miner.pubkey, 50)
 
     # Remove vendor transaction from bad Miner pool (only temporary solution)
-    bad_miner._all_transactions.remove(vendor_tx.to_json())
+    bad_miner.exclude_transaction(vtx_hash)
     blk = bad_miner.create_block(blk.header["prev_hash"])
     print("Bad Miner creating fork (exclude vendor transaction):")
     print(normal_miner.blockchain.endhash_clen_map)
