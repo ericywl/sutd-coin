@@ -17,50 +17,55 @@ if [[ $UID != 0 ]]; then
 fi
 
 trap finish SIGHUP SIGINT SIGTERM
-while getopts ":hm:s:f" flag; do
+while getopts ":hm:s:fd" flag; do
   case $flag in
     m) # Set miner count.
       miner_count=$OPTARG ;;
     s) # Set SPV client count.
       spv_client_count=$OPTARG ;;
     f) # enable selfish miner
-      selfish_count=1 ;;
+      selfish=true ;;
+    d) # enable double spend
+      double_spend=true ;;
     h | *) # Display help.
       print_usage ;;
   esac
 done
 
-if [ $OPTIND -eq 1 ];
-  then print_usage;
+if [ $OPTIND -eq 1 ]; then
+  print_usage; 
+  exit 1;
+elif [ -z "$miner_count" ]; then
+    echo "Please set miners"; 
+    exit 1;
+elif [ -n "$selfish" ] && [ -n "$double_spend" ]; then
+  echo "Can't enable selfish miner and double spend miner together";
+  exit 1;
 else
-  if [ -z "$miner_count" ]; then
-    echo "Please set miners"
-  else
-    python src/trusted_server.py &
-    IDS+=($!)
-    sleep 3
+  python src/trusted_server.py &
+  IDS+=($!)
+  sleep 3
 
-    if [ -n "$spv_client_count" ]; then
-      for i in $(seq 1 $spv_client_count)
-        do
-          python src/spv_client.py $(($i + 22345)) &
-          IDS+=($!)
-          sleep 1
-        done
-    fi
-
-    for i in $(seq 1 $miner_count)
+  if [ -n "$spv_client_count" ]; then
+    for i in $(seq 1 $spv_client_count)
       do
-        python src/miner.py $(($i + 12345)) &
+        python src/spv_client.py $(($i + 22345)) &
         IDS+=($!)
         sleep 1
       done
+  fi
 
-    if [ -n "$selfish_count" ]; then
-      sudo nice -n -3 python src/selfish.py $((33345)) &
+  for i in $(seq 1 $miner_count)
+    do
+      python src/miner.py $(($i + 12345)) &
       IDS+=($!)
       sleep 1
-    fi
+    done
+
+  if [ -n "$selfish" ]; then
+    sudo nice -n -3 python src/selfish.py $((33345)) &
+    IDS+=($!)
+    sleep 1
   fi
 fi
 

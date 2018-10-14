@@ -353,7 +353,6 @@ def main():
     print(f"Miner established connection with {len(miner.peers)} peers")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
-    print(len(miner.peers))
     while True:
         # miner_main_send_tx(miner)
         blk = miner.create_block()
