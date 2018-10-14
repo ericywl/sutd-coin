@@ -123,7 +123,8 @@ class Miner(NetNode):
         prev_blk = None if prev_hash is None else \
             self._blockchain.hash_block_map[prev_hash]
         last_blk = self._update(prev_blk)
-        gathered_tx = self._gather_transactions()
+        pending_tx = self._get_tx_pool()
+        gathered_tx = self._gather_transactions(pending_tx)
         block = self._mine_new_block(last_blk.header, gathered_tx)
         if block is not None:
             blk_json = block.to_json()
@@ -146,6 +147,7 @@ class Miner(NetNode):
 
     def get_transaction_proof(self, tx_hash):
         """Get proof of transaction given transaction hash"""
+        self._update()
         with self.blockchain_lock:
             last_blk = self._blockchain.resolve()
             res = self._blockchain.get_transaction_proof_in_fork(
@@ -234,13 +236,13 @@ class Miner(NetNode):
                 return False
         return True
 
-    def _gather_transactions(self):
-        """Gather transactions that are valid from pending"""
+    def _gather_transactions(self, tx_pool):
+        """Gather transactions that are valid from transaction pool"""
         # Get a set of random transactions from pending transactions
         self.added_tx_lock.acquire()
         self.all_tx_lock.acquire()
         try:
-            pending_tx = self._all_transactions - self._added_transactions
+            tx_pool = self._all_transactions - self._added_transactions
             # Put in coinbase transaction
             coinbase_tx = Transaction.new(
                 sender=self.pubkey,
@@ -251,14 +253,14 @@ class Miner(NetNode):
             )
             gathered_transactions = [coinbase_tx.to_json()]
             # No transactions to process, return coinbase transaction only
-            if not pending_tx:
+            if not tx_pool:
                 return gathered_transactions
             # num_tx = random.randint(1, len(transaction_pool))
-            num_tx = len(pending_tx)
+            num_tx = len(tx_pool)
             while True:
                 if num_tx <= 0:
                     return gathered_transactions
-                trans_sample = random.sample(pending_tx, num_tx)
+                trans_sample = random.sample(tx_pool, num_tx)
                 num_tx -= 1
                 if self._check_transactions_balance(trans_sample):
                     break
@@ -267,6 +269,9 @@ class Miner(NetNode):
             self.added_tx_lock.release()
             self.all_tx_lock.release()
         return gathered_transactions
+
+    def _get_tx_pool(self):
+        return self._all_transactions - self._added_transactions
 
 
 class _MinerListener(_NetNodeListener):

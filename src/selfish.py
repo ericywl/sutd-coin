@@ -11,7 +11,7 @@ import ecdsa
 from miner import Miner, _MinerListener, miner_main_send_tx
 
 
-BE_SELFISH = False
+BE_SELFISH = True
 
 
 class SelfishMiner(Miner):

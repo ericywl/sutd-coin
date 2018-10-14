@@ -10,6 +10,21 @@ from miner import Miner
 class DoubleSpendMiner(Miner):
     """DoubleSpendMiner class"""
 
+    def __init__(self, privkey, pubkey, address):
+        super().__init__(privkey, pubkey, address, listen=True)
+        self._excluded_transactions = set()
+
+    def exclude_transaction(self, tx_hash):
+        """Add transaction to exclusion list given transaction hash"""
+        self._update()
+        for t_json in self._all_transactions:
+            if algo.hash1(t_json) == tx_hash:
+                self._excluded_transactions.add(t_json)
+        raise Exception("Transaction does not exist in transactions")
+
+    def _get_tx_pool(self):
+        return super()._get_tx_pool - self._excluded_transactions
+
 
 def map_pubkey_to_name(obs):
     """Map pubkey to name in balance"""
