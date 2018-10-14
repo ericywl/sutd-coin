@@ -53,6 +53,7 @@ class Miner(NetNode):
     @property
     def balance(self):
         """Copy of balance state"""
+        self._update()
         with self.balance_lock:
             balance_copy = copy.deepcopy(self._balance)
         return balance_copy
@@ -60,7 +61,7 @@ class Miner(NetNode):
     @property
     def blockchain(self):
         """Copy of blockchain"""
-        self._clear_queue()
+        self._update()
         with self.blockchain_lock:
             blkchain_copy = copy.deepcopy(self._blockchain)
         return blkchain_copy
@@ -68,7 +69,7 @@ class Miner(NetNode):
     @property
     def pending_transactions(self):
         """Copy of pending transactions"""
-        self._clear_queue()
+        self._update()
         self.added_tx_lock.acquire()
         self.all_tx_lock.acquire()
         try:
@@ -81,7 +82,7 @@ class Miner(NetNode):
     @property
     def added_transactions(self):
         """Copy of added transactions"""
-        self._clear_queue()
+        self._update()
         with self.added_tx_lock:
             added_tx_copy = copy.deepcopy(self._added_transactions)
         return added_tx_copy
@@ -89,7 +90,7 @@ class Miner(NetNode):
     @property
     def all_transactions(self):
         """Copy of all transactions"""
-        self._clear_queue()
+        self._update()
         with self.all_tx_lock:
             all_tx_copy = copy.deepcopy(self._all_transactions)
         return all_tx_copy
