@@ -6,6 +6,7 @@ import threading
 import sys
 import time
 import random
+import os.path
 import ecdsa
 
 import algo
@@ -180,33 +181,40 @@ class _SPVClientListener(_NetNodeListener):
             client_sock.close()
 
 
+def spv_main_send_transaction(spv):
+    """Used in main to send one transaction"""
+    balance = spv.request_balance()
+    if balance > 10:
+        peer_index = random.randint(0, len(spv.peers) - 1)
+        chosen_peer = spv.peers[peer_index]
+        created_tx = spv.create_transaction(chosen_peer.pubkey, 10)
+        tx_json = created_tx.to_json()
+        tx_hash = algo.hash1(tx_json)
+        print(f"SPV {spv.name} sent {tx_hash} to {chosen_peer['pubkey']}")
+
+
+def spv_main_verify_tx(spv):
+    """Used in main to verify transaction proof"""
+    transactions = spv.transactions
+    if transactions:
+        i = random.randint(0, len(transactions) - 1)
+        tx_hash = algo.hash1(transactions[i])
+        tx_in_bc = spv.verify_transaction_proof(tx_hash)
+        print(f"SPV {spv.name} check {tx_hash} in blockchain: {tx_in_bc}")
+
+
 def main():
     """Main function"""
     spv = SPVClient.new(("127.0.0.1", int(sys.argv[1])))
     spv.startup()
     print(f"SPVClient established connection with {len(spv.peers)} peers")
-    spv_name = spv.name
-    time.sleep(5)
+    time.sleep(2)
     while True:
-        print("fuck")
         # Request transaction proof
-        transactions = spv.transactions
-        if transactions:
-            print("trans")
-            i = random.randint(0, len(transactions) - 1)
-            tx_hash = algo.hash1(transactions[i])
-            tx_in_bc = spv.verify_transaction_proof(tx_hash)
-            print(f"SPV {spv_name} check {tx_hash} in blockchain: {tx_in_bc}")
+        spv_main_verify_tx(spv)
         time.sleep(1)
         # Create new transaction
-        balance = spv.request_balance()
-        if balance > 10:
-            peer_index = random.randint(0, len(spv.peers) - 1)
-            chosen_peer = spv.peers[peer_index]
-            created_tx = spv.create_transaction(chosen_peer.pubkey, 10)
-            tx_json = created_tx.to_json()
-            tx_hash = algo.hash1(tx_json)
-            print(f"SPV {spv_name} sent {tx_hash} to {chosen_peer['pubkey']}")
+        # spv_main_send_transaction(spv)
 
 
 if __name__ == "__main__":

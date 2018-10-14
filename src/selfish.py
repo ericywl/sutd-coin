@@ -4,6 +4,7 @@ import time
 import threading
 import json
 import queue
+import os.path
 # import random
 import ecdsa
 
@@ -68,11 +69,13 @@ def main():
     miner = SelfishMiner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
     print(f"SelfishMiner established connection with {len(miner.peers)} peers")
-    time.sleep(5)
+    while not os.path.exists("mine_lock"):
+        time.sleep(0.5)
     while True:
         # miner_main_send_tx(miner)
         miner.create_block()
         print(miner.balance)
+        time.sleep(1)
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ import json
 import random
 import threading
 import queue
+import os.path
 import ecdsa
 
 import algo
@@ -132,8 +133,8 @@ class Miner(NetNode):
             # Remove gathered transactions from pool and them to added pile
             with self.added_tx_lock:
                 self._added_transactions |= set(gathered_tx)
+            print(f"{self.__class__.__name__} {self.name} created a block.")
         self._update()
-        print(f"{self.__class__.__name__} {self.name} created a block.")
         return block
 
     def add_block(self, blk_json):
@@ -350,13 +351,15 @@ def main():
     miner = Miner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
     print(f"Miner established connection with {len(miner.peers)} peers")
-    time.sleep(5)
+    while not os.path.exists("mine_lock"):
+        time.sleep(0.5)
+    print(len(miner.peers))
     while True:
         # miner_main_send_tx(miner)
         blk = miner.create_block()
-        # time.sleep(1)
-        # if blk:
-        #     print(miner.blockchain.endhash_clen_map)
+        time.sleep(1)
+        if blk:
+            print(miner.blockchain.endhash_clen_map)
 
 
 if __name__ == "__main__":

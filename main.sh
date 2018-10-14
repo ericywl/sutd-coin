@@ -6,6 +6,7 @@ IDS=()
 finish() {
   sudo kill $(jobs -p)
   kill 0;
+  rm mine_lock
   exit;
 }
 
@@ -42,25 +43,29 @@ else
     if [ -n "$spv_client_count" ]; then
       for i in $(seq 1 $spv_client_count)
         do
-          # sleep 2
           python src/spv_client.py $(($i + 22345)) &
           IDS+=($!)
+          sleep 1
         done
     fi
 
     for i in $(seq 1 $miner_count)
       do
-        # sleep 2
         python src/miner.py $(($i + 12345)) &
         IDS+=($!)
+        sleep 1
       done
 
     if [ -n "$selfish_count" ]; then
       sudo nice -n -3 python src/selfish.py $((33345)) &
       IDS+=($!)
+      sleep 1
     fi
   fi
 fi
+
+sleep 5
+touch mine_lock
 
 echo "Press [CTRL+C] to stop.."
 while true

@@ -11,7 +11,6 @@ class DoubleSpendMiner(Miner):
     """DoubleSpendMiner class"""
 
 
-
 def map_pubkey_to_name(obs):
     """Map pubkey to name in balance"""
     name_balance = {}
@@ -25,8 +24,8 @@ def map_pubkey_to_name(obs):
     return name_balance
 
 
-def main():
-    """Main function"""
+def test():
+    """Test function"""
     TrustedServer()
     time.sleep(3)
     normal_miner = Miner.new(("localhost", 12345))
@@ -96,4 +95,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    test()
