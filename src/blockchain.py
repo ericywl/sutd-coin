@@ -253,10 +253,12 @@ def main():
     print("Last block hash: {}".format(algo.hash1_dic(last_blk.header)))
 
     print("Attempting to slide in a sneaky duplicate transaction..")
-    rogue_transactions = generate_transactions(9) + random.sample(transactions, 1)
+    rogue_transactions = generate_transactions(9) \
+        + random.sample(transactions, 1)
     prev_hash = algo.hash1_dic(last_blk.header)
     new_block = Block.new(prev_hash, rogue_transactions, threading.Event())
     blockchain.add(new_block)
+
 
 if __name__ == "__main__":
     main()

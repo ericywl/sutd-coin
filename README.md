@@ -83,13 +83,12 @@ still has the amount unspent.
 Demonstrated with `sudo ./main.sh -m 1 -f`. This will create 1 normal miner and
 1 selfish miner that will compete with one another for block mining. For the 
 tests, we introduced a `BE_SELFISH` class variable to SelfishMiner so as to 
-see the difference that selfish mining can make. 
-
-A 1-on-1 test was chosen because it showcases the difference between selfish 
-mining and non-selfish mining more clearly. In cases where more miners were 
-involded, the results were significantly more chaotic, making it hard to 
-interpret. There are no transactions involved as we are using the rewards as
-an indicator to number of blocks mined.
+see the difference that selfish mining can make. A 1-on-1 test was chosen 
+because it showcases the difference between selfish mining and non-selfish 
+mining more clearly. In cases where more miners were involded, the results 
+were significantly more chaotic, making it hard to interpret. There are no 
+transactions involved as we are using the rewards as an indicator to number 
+of blocks mined.
 
 The tests were run with `nice -3` on the tested miner and `nice 0` (default) 
 on the other. This means that the tested miner has slightly higher resource
@@ -112,8 +111,13 @@ the rewards that the miners gets from ~53% to ~65%.
 ## Major Differences between Bitcoin and SUTDCoin
 - Bitcoin uses UTXO while SUTDCoin uses basic `addr:balance`.
 - Bitcoin fork resolution uses proof of work and first-come-first-serve, 
-whereas SUTDCoin uses chain length and cummulative hash if forks are same 
-length.
+    whereas SUTDCoin uses chain length and cummulative hash if forks are same 
+    length.
+- Bitcoin checks that a block timestamp has to be larger than
+    previous-11-median, whereas SUTDCoin uses only the previous block's
+    timestamp for validity check.
+- Bitcoin has dynamic block difficulty while SUTDCoin has static block
+    difficulty.
 - Bitcoin has market value.
 
 ![LUL](https://ih0.redbubble.net/image.500553700.1057/sticker,375x360-bg,ffffff.u2.png)
