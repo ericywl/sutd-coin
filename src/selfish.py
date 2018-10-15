@@ -11,17 +11,15 @@ import ecdsa
 from miner import Miner, _MinerListener, miner_main_send_tx
 
 
-BE_SELFISH = True
-
-
 class SelfishMiner(Miner):
     """☠️ ☠️ ☠️ ☠️ ☠️ ☠️ ☠️"""
+    BE_SELFISH = True
 
     def __init__(self, privkey, pubkey, address):
         super().__init__(privkey, pubkey, address, listen=False)
         self.withheld_blocks = queue.Queue()
         # Listener
-        if BE_SELFISH:
+        if SelfishMiner.BE_SELFISH:
             self._listener = _SelfishMinerListener(address, self)
         else:
             self._listener = _MinerListener(address, self)
@@ -39,7 +37,7 @@ class SelfishMiner(Miner):
             print(f"Block pushed by {self.__class__.__name__} - {self.name}")
 
     def _broadcast_block(self, block):
-        if BE_SELFISH:
+        if SelfishMiner.BE_SELFISH:
             self.withheld_blocks.put(block)
         else:
             super()._broadcast_block(block)

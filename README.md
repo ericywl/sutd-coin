@@ -33,7 +33,7 @@ Fork resolution is done in `blockchain.py:resolve` - The object maintains
 a list of tails whenever a block is added. This list is used afterwards to 
 find a chain that has the longest length in terms of blocks - the shorter 
 chains are "removed", resolving the fork. If chains of similar length are 
-found, we simulate a pseudo **proof of work** by adding the hash values in 
+found, we simulate a pseudo **proof of work** by summing the hash values in 
 a chain to determine which chain to accept ie. the chain with the lowest 
 cummulative hash will be accepted.
 
@@ -80,13 +80,16 @@ still has the amount unspent.
 
 ### Selfish Mining
 
-Demonstrated with `sudo ./main.sh -m 1 -f`.
+Demonstrated with `sudo ./main.sh -m 1 -f`. This will create 1 normal miner and
+1 selfish miner that will compete with one another for block mining. For the 
+tests, we introduced a `BE_SELFISH` class variable to SelfishMiner so as to 
+see the difference that selfish mining can make. 
 
-The table below shows the percentage of reward pool that a majority miner gets
-with vs. without selfish mining algorithm. A 1-on-1 test was chosen because it
-showcases the difference between selfish mining and non-selfish mining more
-clearly. In cases where more miners were involded, the results were 
-significantly more chaotic, making it hard to interpret.
+A 1-on-1 test was chosen because it showcases the difference between selfish 
+mining and non-selfish mining more clearly. In cases where more miners were 
+involded, the results were significantly more chaotic, making it hard to 
+interpret. There are no transactions involved as we are using the rewards as
+an indicator to number of blocks mined.
 
 The tests were run with `nice -3` on the tested miner and `nice 0` (default) 
 on the other. This means that the tested miner has slightly higher resource
@@ -94,7 +97,8 @@ priority in both cases. In real world, this would mean that the tested miner
 has slightly higher computational power and should therefore win the
 competition more often than not even without selfish mining. Results are 
 collected after the blockchain reach length of 100 ie. the longest chain 
-reaches 100 blocks.
+reaches 100 blocks. The table below shows the percentage of reward pool that
+a majority miner gets with vs. without selfish mining algorithm. 
 
 | Runs                      | 1    | 2    | 3    | 4    | 5    | 6    | 7    | 8    | Average |
 |---------------------------|------|------|------|------|------|------|------|------|---------|
