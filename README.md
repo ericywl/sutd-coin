@@ -18,7 +18,7 @@ For double spending, we will be using `python src/double_spend.py` for a
 sequential demonstration because the results are more obvious compared to
 in a multi-process case and it is also easier to implement.
 
-___Note: The `-f` and `-d` option cannot be used together.___
+___Note: At least 2 miners should be included when running the simulation.___
 
 ## Mining and Coin Creation
 

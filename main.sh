@@ -1,7 +1,10 @@
 #! /bin/bash
-
-print_usage() { echo "$0 usage:" && grep " .)\ #" $0; exit 0; }
 IDS=()
+
+print_usage() {
+  echo "$0 usage:" && grep " .)\ #" $0;
+  exit 0;
+}
 
 finish() {
   sudo kill $(jobs -p)
@@ -31,10 +34,10 @@ while getopts ":hm:s:f" flag; do
 done
 
 if [ $OPTIND -eq 1 ]; then
-  print_usage; 
+  print_usage;
   exit 1;
 elif [ -z "$miner_count" ]; then
-    echo "Please set miners"; 
+    echo "Please set miners";
     exit 1;
 else
   python src/trusted_server.py &
@@ -52,7 +55,7 @@ else
 
   for i in $(seq 1 $miner_count)
     do
-      python src/miner.py $(($i + 12345)) &
+      python src/miner.py $(($i + 12345)) $selfish &
       IDS+=($!)
       sleep 1
     done
