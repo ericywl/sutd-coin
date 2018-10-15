@@ -15,27 +15,34 @@ the following:
 | `-f`      | Create one selfish miner  |
 
 For double spending, we will be using `python src/double_spend.py` for a
-sequential demonstration because it is the results are more obvious compared to
-in a multi-process case and also easier to implement.
+sequential demonstration because the results are more obvious compared to
+in a multi-process case and it is also easier to implement.
 
 ___Note: The `-f` and `-d` option cannot be used together.___
 
 ## Mining and Coin Creation
 
-The coin creation is done by having miners create the first block with 
-no transactions and seeing which miner is able to create their block 
-first. As blocks added to the blockchain will reward the miner, this will 
-generate the initial coin in the network.
+Mining is demonstrated in `sudo ./main.sh -m NUM`. Using the demonstration,
+we can see multiple miners competing with each other to append to the
+blockchain. Occasionally, two or more miners will create blocks at the same
+time, resulting in forks. This is resolved through fork resolution, which will
+be discussed later.
+
+The coin creation is done by having miners compete to create the first 
+block with no transactions in it. The first miner that creates a block will
+be the miner that gets the first coins in the network. This is because adding
+blocks to the blockchain will reward the miner, which in this case means the
+generation of the first coins.
 
 ## Fork Resolution
 
-Fork resolution is done in `blockchain.py:resolve` - The object maintains 
-a list of tails whenever a block is added. This list is used afterwards to 
-find a chain that has the longest length in terms of blocks - the shorter 
-chains are "removed", resolving the fork. If chains of similar length are 
-found, we simulate a pseudo **proof of work** by summing the hash values in 
-a chain to determine which chain to accept ie. the chain with the lowest 
-cummulative hash will be accepted.
+Fork resolution is implemented in `blockchain.py:resolve`. The blockchain 
+object maintains a list of tails whenever a block is added. This list is 
+used afterwards to find a chain that has the longest length in terms of 
+blocks - the shorter chains are "removed", resolving the fork. If chains 
+of similar length are found, we simulate a pseudo **proof of work** by summing 
+the hash values in a chain to determine which chain to accept ie. the 
+chain with the lowest cummulative hash will be accepted.
 
 Fork Resolution is demonstrated with `python src/blockchain.py`.
 
@@ -65,18 +72,32 @@ transactions to others, if they have any coins.
 
 ### Double-Spending
 
-Demonstrated with `python src/double_spend.py`. 
-1. **BadMiner** sends an amount to a **BadSPVClient**.
-2. **BadSPVClient** spends the amount at a **Vendor**. The block 
-(with the transaction) is propagated by the **BadMiner**.
-3. **Vendor** authorizes the request and sends over an IPad 
-(let's imagine this happening).
-4. **BadMiner** removes the transaction from the list of transactions, 
-re-generates the block and races other **Miners** with their fork.
-5. **BadMiner** pushes a series of blocks, which after being resolved, 
-invalidates the previous transaction. 
-6. **BadSPVClient** has the imaginary IPad given by Vendor, while **BadMiner** 
-still has the amount unspent.
+Demonstrated with `python src/double_spend.py`. The following is a
+step-by-step description of what happens in the demonstration. In this
+scenario, **BadMiner** and **BadSPVClient** can be the same person but with
+different accounts.
+
+1. **BadMiner** is initialized with an arbitary amount of coins (through first
+   block mining).
+2. **BadMiner** sends X amount to a **BadSPVClient** and the transaction is
+   validated by any miner.
+3. Upon receiving the coins, **BadSPVClient** spends X amount at a **Vendor**, 
+   leaving him with nothing. The block, with the aforementioned transaction, 
+   is mined by any miner.
+4. **Vendor** authorizes the request and sends over an iPad 
+   (let's imagine this happening).
+5. **BadSPVClient** then creates a transaction that directs X amount of coins
+   to **BadMiner's** account.
+6. **BadMiner** excludes the **BadSPVClient-Vendor** transaction from his/her
+   transaction pool but includes the **BadSPVClient-BadMiner** transaction
+   in (5), and starts mining to create a fork at the block that has the 
+   **BadSPV-Vendor** transaction.
+7. **BadMiner** pushes a series of blocks, which after being resolved, 
+   invalidates the **BadSPV-Vendor** transaction since it is not in the
+   blockchain. 
+8. **BadSPVClient** has the imaginary iPad sent by Vendor, while **BadMiner** 
+   still has the same X amount unspent. **Vendor** can't charge **BadSPV** because 
+   the **BadSPV** does not have any coins left.
 
 ### Selfish Mining
 
