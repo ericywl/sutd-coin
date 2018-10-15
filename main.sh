@@ -17,7 +17,7 @@ if [[ $UID != 0 ]]; then
 fi
 
 trap finish SIGHUP SIGINT SIGTERM
-while getopts ":hm:s:fd" flag; do
+while getopts ":hm:s:f" flag; do
   case $flag in
     m) # Set miner count.
       miner_count=$OPTARG ;;
@@ -25,8 +25,6 @@ while getopts ":hm:s:fd" flag; do
       spv_client_count=$OPTARG ;;
     f) # enable selfish miner
       selfish=true ;;
-    d) # enable double spend
-      double_spend=true ;;
     h | *) # Display help.
       print_usage ;;
   esac
@@ -38,9 +36,6 @@ if [ $OPTIND -eq 1 ]; then
 elif [ -z "$miner_count" ]; then
     echo "Please set miners"; 
     exit 1;
-elif [ -n "$selfish" ] && [ -n "$double_spend" ]; then
-  echo "Can't enable selfish miner and double spend miner together";
-  exit 1;
 else
   python src/trusted_server.py &
   IDS+=($!)
