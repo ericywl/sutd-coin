@@ -27,6 +27,23 @@ class DoubleSpendMiner(Miner):
         return super()._get_tx_pool() - self._excluded_transactions
 
 
+class DoubleSpendSPV(SPVClient):
+    """DoubleSpendSPV class"""
+    # The miner cannot be the one doing the transaction with the vendor
+    # because the miner can earn rewards from mining and those earned rewards
+    # will be able to compensate for the "cheated" amount
+
+
+class Vendor(SPVClient):
+    """Vendor class"""
+
+    def send_product(self, receiver):
+        """Simulate delivering the product to a buyer"""
+        # Make new protocol prefix so buyer can receive this message?
+        # Used by DoubleSpendMiner to determine when to start forking
+        print(f"{self.__class__.__name__} sent product to {receiver}")
+
+
 def map_pubkey_to_name(obs):
     """Map pubkey to name in balance"""
     name_balance = {}
@@ -45,8 +62,8 @@ def test():
     TrustedServer()
     time.sleep(3)
     normal_miner = Miner.new(("localhost", 12345))
-    vendor = SPVClient.new(("localhost", 22345))
-    bad_spv = SPVClient.new(("localhost", 32345))
+    vendor = Vendor.new(("localhost", 22345))
+    bad_spv = DoubleSpendSPV.new(("localhost", 32345))
     bad_miner = DoubleSpendMiner.new(("localhost", 32346))
 
     normal_miner.startup()
@@ -72,7 +89,7 @@ def test():
     time.sleep(1)
     bad_miner.create_block()
     time.sleep(1)
-    print("Bad Miner gives bad SPV money:")
+    print("Bad Miner gives Bad SPV money to spend:")
     print(map_pubkey_to_name(bad_miner))
 
     # Bad SPV spend on vendor
@@ -81,20 +98,20 @@ def test():
     time.sleep(1)
     blk = normal_miner.create_block()
     time.sleep(1)
-    print("\nBad SPV spent all on vendor:")
+    print("\nBad SPV use all coins to buy from Vendor:")
     print(map_pubkey_to_name(normal_miner))
 
     # Vendor verify transaction
     result = vendor.verify_transaction_proof(vtx_hash)
     print(f"\nVendor verify transaction: {result}")
-    print(f"Vendor send bad SPV product\n")
+    vendor.send_product(bad_spv.name)
     print(f"Current blockchain:\n{normal_miner.blockchain.endhash_clen_map}")
 
     # Bad Miner should mine faster at fork and reverse the transaction
-    print(f"Bad SPV send supposedly spent money to bad Miner\n")
+    print(f"Bad SPV create double spend transaction to Bad Miner\n")
     bad_spv.create_transaction(bad_miner.pubkey, 50)
 
-    # Remove vendor transaction from bad Miner pool (only temporary solution)
+    # Exclude vendor transaction from bad Miner pool
     bad_miner.exclude_transaction(vtx_hash)
     blk = bad_miner.create_block(blk.header["prev_hash"])
     print("Bad Miner creating fork (exclude vendor transaction):")
