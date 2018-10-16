@@ -358,9 +358,9 @@ def main():
     print(f"Miner established connection with {len(miner.peers)} peers")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
-    print(len(sys.argv))
     while True:
-        if len(sys.argv) == 2: # only create transactions if no selfishminer
+        if len(sys.argv) == 2:
+            # only create transactions if no selfishminer
             miner_main_send_tx(miner)
         blk = miner.create_block()
         time.sleep(1)
