@@ -130,18 +130,14 @@ the rewards that the miners gets from ~53% to ~65%.
 
 
 ## Major Differences between Bitcoin and SUTDCoin
-- Bitcoin uses UTXO while SUTDCoin uses basic `addr:balance`.
-- Users of bitcoin must fulfill scriptSig or sigPubKey to spend outputs but
-    in SUTDCoin the receiver will immediately be able to spend the transaction
-    amount if the transaction is valid.
-- Bitcoin fork resolution uses proof of work and first-come-first-serve, 
-    whereas SUTDCoin uses chain length and cummulative hash if forks are same 
-    length.
-- Bitcoin checks that a block timestamp has to be larger than
-    previous-11-median, whereas SUTDCoin uses only the previous block's
-    timestamp for validity check.
-- Bitcoin has dynamic block difficulty while SUTDCoin has static block
-    difficulty.
-- Bitcoin has market value.
 
-![LUL](https://ih0.redbubble.net/image.500553700.1057/sticker,375x360-bg,ffffff.u2.png)
+|                    | Bitcoin                                                               | SUTDCoin              |
+|--------------------|-----------------------------------------------------------------------|-----------------------|
+| Transaction Model  | UTXO model                                                            | Address:Balance model |
+| Spending Coins     | Receivers must fulfill scriptSig or scriptPubKey to spend outputs     | Receivers can spend after transaction is added to blockchain |
+| Fork Resolution    | Uses Proof-of-Work and first-come-first-serve if forks have same PoW  | Uses chain length and cummulative hash if forks are same length |
+| Timestamp Validity | Timestamp of block has to be larger than median of previous 11 blocks | Timestamp of block has to be larger than previous block |
+| Block Difficulty   | Dynamic and changes every 2016 blocks                                 | Static, currently always 000029fffffffff... |
+| Market Value       | Can be exchanged for SGD8856 per Bitcoin as of writing                | Absolutely useless <img src="https://ih0.redbubble.net/image.500553700.1057/sticker,375x360-bg,ffffff.u2.png" width="70"> |
+
+
