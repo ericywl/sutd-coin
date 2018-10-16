@@ -131,7 +131,9 @@ the rewards that the miners gets from ~53% to ~65%.
 
 ## Major Differences between Bitcoin and SUTDCoin
 - Bitcoin uses UTXO while SUTDCoin uses basic `addr:balance`.
-- Bitcoin uses sigpub scripts while SUTDCoin uses basic digital signatures to verify transactions.
+- Users of bitcoin must fulfill scriptSig or sigPubKey to spend outputs but
+    in SUTDCoin the receiver will immediately be able to spend the transaction
+    amount if the transaction is valid.
 - Bitcoin fork resolution uses proof of work and first-come-first-serve, 
     whereas SUTDCoin uses chain length and cummulative hash if forks are same 
     length.
