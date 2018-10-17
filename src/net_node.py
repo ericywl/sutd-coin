@@ -68,6 +68,7 @@ class NetNode:
             self.set_peers(addresses)
         # print(f"Established connections with {len(self._peers)} nodes")
         data = {
+            "class": self.__class__.__name__,
             "address": self.address,
             "pubkey": self.pubkey,
             "name": self.name
