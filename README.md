@@ -81,18 +81,14 @@ different accounts.
    block mining).
 2. **BadMiner** sends X amount to a **BadSPVClient** and the transaction is
    validated by any miner.
-3. Upon receiving the coins, **BadSPVClient** spends X amount at a **Vendor**, 
+3. When **BadSPVClient** receives the coins, **BadMiner** starts their own private fork. **BadSPVClient** spends X amount at a **Vendor**, 
    leaving him with nothing. The block, with the aforementioned transaction, 
    is mined by any miner.
 4. **Vendor** authorizes the request and sends over an iPad 
    (let's imagine this happening).
 5. **BadSPVClient** then creates a transaction that directs X amount of coins
-   to **BadMiner's** account.
-6. **BadMiner** excludes the **BadSPVClient-Vendor** transaction from his/her
-   transaction pool but includes the **BadSPVClient-BadMiner** transaction
-   in (5), and starts mining to create a fork at the block that has the 
-   **BadSPV-Vendor** transaction.
-7. **BadMiner** pushes a series of blocks, which after being resolved, 
+   to **BadMiner's** account. (This transaction is also added to **BadMiner**'s private fork)
+6. **BadMiner** pushes their own private fork (which will be longer than the main chain), which after being resolved, 
    invalidates the **BadSPV-Vendor** transaction since it is not in the
    blockchain. 
 8. **BadSPVClient** has the imaginary iPad sent by Vendor, while **BadMiner** 
@@ -138,6 +134,6 @@ the rewards that the miners gets from ~53% to ~65%.
 | Fork Resolution    | Uses Proof-of-Work and first-come-first-serve if forks have same PoW  | Uses chain length and cummulative hash if forks are same length |
 | Timestamp Validity | Timestamp of block has to be larger than median of previous 11 blocks | Timestamp of block has to be larger than previous block |
 | Block Difficulty   | Dynamic and changes every 2016 blocks                                 | Static, currently always 000029fffffffff... |
-| Market Value       | Can be exchanged for SGD8856 per Bitcoin as of writing                | Absolutely useless <img src="https://ih0.redbubble.net/image.500553700.1057/sticker,375x360-bg,ffffff.u2.png" width="70"> |
+| Market Value       | Can be exchanged for SGD8856 per Bitcoin as of writing                | Absolutely worthless <img src="https://ih0.redbubble.net/image.500553700.1057/sticker,375x360-bg,ffffff.u2.png" width="70"> |
 
 

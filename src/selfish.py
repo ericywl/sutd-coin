@@ -5,10 +5,8 @@ import threading
 import json
 import queue
 import os.path
-# import random
-import ecdsa
 
-from miner import Miner, _MinerListener, miner_main_send_tx
+from miner import Miner, _MinerListener
 
 
 class SelfishMiner(Miner):
@@ -70,7 +68,6 @@ def main():
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
     while True:
-        # miner_main_send_tx(miner)
         miner.create_block()
         print(miner.balance)
         time.sleep(1)
