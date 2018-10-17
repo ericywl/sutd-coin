@@ -83,7 +83,7 @@ different accounts.
    validated by any miner.
 3. When **BadSPVClient** receives the coins, **BadMiner** starts their own private fork. **BadSPVClient** spends X amount at a **Vendor**, 
    leaving him with nothing. The block, with the aforementioned transaction, 
-   is mined by any miner.
+   is mined by any miner. (Except on the private fork)
 4. **Vendor** authorizes the request and sends over an iPad 
    (let's imagine this happening).
 5. **BadSPVClient** then creates a transaction that directs X amount of coins
