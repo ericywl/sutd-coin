@@ -187,7 +187,7 @@ def spv_main_send_transaction(spv):
     if balance > 10:
         peer_index = random.randint(0, len(spv.peers) - 1)
         chosen_peer = spv.peers[peer_index]
-        created_tx = spv.create_transaction(chosen_peer.pubkey, 10)
+        created_tx = spv.create_transaction(chosen_peer["pubkey"], 10)
         tx_json = created_tx.to_json()
         tx_hash = algo.hash1(tx_json)
         print(f"SPV {spv.name} sent {tx_hash} to {chosen_peer['pubkey']}")
@@ -214,7 +214,8 @@ def main():
         spv_main_verify_tx(spv)
         time.sleep(1)
         # Create new transaction
-        # spv_main_send_transaction(spv)
+        spv_main_send_transaction(spv)
+        time.sleep(8)
 
 
 if __name__ == "__main__":
