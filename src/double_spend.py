@@ -17,55 +17,20 @@ class _DoubleSpendMinerListener(_MinerListener):
     """DoubleSpendMinerListener class"""
 
     def _handle_block(self, data, client_sock):
-        # Receive new block
         blk_json = json.loads(data[1:])["blk_json"]
         client_sock.close()
-        if self._worker.mode == DoubleSpendMiner.INIT_MODE:
-            blk = Block.from_json(blk_json)
-            bad_spv = self._worker.find_peer_by_clsname("DoubleSpendSPVClient")
-            # Check if block contains badSPV transaction
-            # ie. badSPV got the money from badMiner
-            for tx_json in blk.transactions:
-                blk_tx = Transaction.from_json(tx_json)
-                if (blk_tx.sender == self._worker.pubkey and
-                        blk_tx.receiver == bad_spv["pubkey"]):
-                    self._worker.mode = DoubleSpendMiner.FORK_MODE
-                    with self._worker.withheld_blk_lock:
-                        self._worker.withheld_blocks.append(blk)
-                    print("FORK_MODE ACTIVATED")
-                    break
-        elif self._worker.mode == DoubleSpendMiner.FORK_MODE:
-            with self._worker.pubchain_count_lock:
-                self._worker.pubchain_count += 1
-        # Stop mining if new block is received
-        self._worker.stop_mine.set()
-        self._worker.block_queue.put(blk_json)
+        self._worker.ds_handle_block(blk_json)
+        super()._handle_block(data, None)
 
     def _handle_transaction(self, data, client_sock):
         # Receive new transaction
         tx_json = json.loads(data[1:])["tx_json"]
         client_sock.close()
-        recv_tx = Transaction.from_json(tx_json)
-        bad_spv = self._worker.find_peer_by_clsname("DoubleSpendSPVClient")
-        vendor = self._worker.find_peer_by_clsname("Vendor")
-        if self._worker.mode == DoubleSpendMiner.FORK_MODE:
-            # Check if transaction is from bad SPV (double spend)
-            if (recv_tx.sender == bad_spv["pubkey"]
-                    and recv_tx.receiver == self._worker.pubkey):
-                self._worker.mode = DoubleSpendMiner.FIRE_MODE
-                print("FIRE_MODE ACTIVATED")
-        # Check for vendor transaction
-        if (recv_tx.sender == bad_spv["pubkey"]
-                and recv_tx.receiver == vendor["pubkey"]):
-            # Exclude vendor transaction
-            self._worker.excluded_transactions.add(tx_json)
-        else:
-            # Default case
-            if self._worker.all_tx_lock.acquire(False):
-                self._worker.add_transaction(tx_json)
-                self._worker.all_tx_lock.release()
-            else:
-                self._worker.tx_queue.put(tx_json)
+        # ds_handle_transaction will return True if the transaction is
+        # excluded by the worker, else False
+        if not self._worker.ds_handle_transaction(tx_json):
+            # Handle as per usual
+            super()._handle_transaction(data, None)
 
 
 class DoubleSpendMiner(Miner):
@@ -88,7 +53,7 @@ class DoubleSpendMiner(Miner):
         return super()._get_tx_pool() - self.excluded_transactions
 
     def create_block(self, prev_hash=None):
-        if (self.mode is not DoubleSpendMiner.INIT_MODE):
+        if self.mode is not DoubleSpendMiner.INIT_MODE:
             with self.withheld_blk_lock:
                 blk = self.withheld_blocks[-1]
             return super().create_block(algo.hash1_dic(blk.header))
@@ -120,6 +85,45 @@ class DoubleSpendMiner(Miner):
                 super()._broadcast_block(blk)
             self.withheld_blocks = []
             self.mode = DoubleSpendMiner.INIT_MODE
+
+    def ds_handle_block(self, blk_json):
+        """Handle received block from listener"""
+        if self.mode == DoubleSpendMiner.INIT_MODE:
+            blk = Block.from_json(blk_json)
+            bad_spv = self.find_peer_by_clsname("DoubleSpendSPVClient")
+            # Activate FORK_MODE if block contains badSPV transaction
+            # ie. badSPV got the money from badMiner
+            for tx_json in blk.transactions:
+                blk_tx = Transaction.from_json(tx_json)
+                if (blk_tx.sender == self.pubkey and
+                        blk_tx.receiver == bad_spv["pubkey"]):
+                    self.mode = DoubleSpendMiner.FORK_MODE
+                    with self.withheld_blk_lock:
+                        self.withheld_blocks.append(blk)
+                    print("FORK_MODE ACTIVATED")
+                    break
+        elif self.mode == DoubleSpendMiner.FORK_MODE:
+            # Maintain public blockchain length from fork point
+            with self.pubchain_count_lock:
+                self.pubchain_count += 1
+
+    def ds_handle_transaction(self, tx_json):
+        """Handle received transaction from listener"""
+        recv_tx = Transaction.from_json(tx_json)
+        bad_spv = self.find_peer_by_clsname("DoubleSpendSPVClient")
+        vendor = self.find_peer_by_clsname("Vendor")
+        if self.mode == DoubleSpendMiner.FORK_MODE:
+            # Activate FIRE_MODE if transaction is from bad SPV (double spend)
+            if (recv_tx.sender == bad_spv["pubkey"]
+                    and recv_tx.receiver == self.pubkey):
+                self.mode = DoubleSpendMiner.FIRE_MODE
+                print("FIRE_MODE ACTIVATED")
+        if (recv_tx.sender == bad_spv["pubkey"]
+                and recv_tx.receiver == vendor["pubkey"]):
+            # Exclude vendor transaction
+            self.excluded_transactions.add(tx_json)
+            return True
+        return False
 
 
 class _DoubleSpendSPVClientListener(_SPVClientListener):
@@ -162,6 +166,7 @@ class Vendor(SPVClient):
         print(f"{self.__class__.__name__} sent product to {buyer['name']}")
 
 
+# Only used in test()
 def map_pubkey_to_name(obs):
     """Map pubkey to name in balance"""
     name_balance = {}
@@ -175,8 +180,9 @@ def map_pubkey_to_name(obs):
     return name_balance
 
 
+# Deprecated
 def test():
-    """Test function. Deprecated"""
+    """Test function."""
     TrustedServer()
     time.sleep(3)
     normal_miner = Miner.new(("localhost", 12345))
@@ -287,7 +293,7 @@ def main():
                 for vtx in vendor.transactions:
                     vtx_hash = algo.hash1(vtx)
                     print(vendor.verify_transaction_proof(vtx_hash))
-                time.sleep(2)
+                time.sleep(5)
 
         elif sys.argv[2] == "SPV":
             spv = DoubleSpendSPVClient.new(("127.0.0.1", int(sys.argv[1])))

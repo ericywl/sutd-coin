@@ -44,7 +44,8 @@ class _MinerListener(_NetNodeListener):
     def _handle_block(self, data, client_sock):
         # Receive new block
         blk_json = json.loads(data[1:])["blk_json"]
-        client_sock.close()
+        if client_sock:
+            client_sock.close()
         # Stop mining if new block is received
         self._worker.stop_mine.set()
         self._worker.block_queue.put(blk_json)
@@ -52,7 +53,8 @@ class _MinerListener(_NetNodeListener):
     def _handle_transaction(self, data, client_sock):
         # Receive new transaction
         tx_json = json.loads(data[1:])["tx_json"]
-        client_sock.close()
+        if client_sock:
+            client_sock.close()
         if self._worker.all_tx_lock.acquire(False):
             self._worker.add_transaction(tx_json)
             self._worker.all_tx_lock.release()
