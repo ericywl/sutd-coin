@@ -3,22 +3,25 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import socket
 import threading
+from monsterurl import get_monster
 
 import algo
-from monsterurl import get_monster
 from trusted_server import TrustedServer
 
 
 class NetNode:
     """NetNode class"""
 
-    def __init__(self, privkey, pubkey, address):
+    def __init__(self, privkey, pubkey, address, listener=None):
         self._keypair = (privkey, pubkey)
         self._address = address
         self._peers = []
         self._name = get_monster()
+        self._listener = listener(address, self)
         clsname = self.__class__.__name__
         print(f"Starting {clsname} - {self.name} on {address}")
+        if listener:
+            threading.Thread(target=self._listener.run).start()
 
     @property
     def name(self):
@@ -98,6 +101,20 @@ class NetNode:
         executor.shutdown(wait=True)
         replies = [future.result() for future in futures]
         return replies
+
+    def find_peer_by_clsname(self, clsname):
+        """Find peer with a particular classname"""
+        for peer in self.peers:
+            if peer["class"] == clsname:
+                return peer
+        raise Exception("Can't find peer with given class name")
+
+    def find_peer_by_pubkey(self, pubkey):
+        """Find peer with particular pubkey"""
+        for peer in self.peers:
+            if peer["pubkey"] == pubkey:
+                return peer
+        raise Exception("Can't find peer with given pubkey")
 
     # STATIC METHODS
 

@@ -17,11 +17,42 @@ from merkle_tree import verify_proof
 from transaction import Transaction
 
 
+class _SPVClientListener(_NetNodeListener):
+    """SPV client's Listener class"""
+
+    def handle_client_data(self, data, client_sock):
+        """Handle client data based on protocol indicator"""
+        prot = data[0].lower()
+        if prot == "n":
+            # Sent by the central server when a new node joins
+            address = json.loads(data[1:])
+            # print(f"{self._worker.name} added a node to their network.")
+            self._worker.add_peer(address)
+            client_sock.close()
+        elif prot == "h":
+            # Receive new block header
+            block_header = json.loads(data[1:])
+            client_sock.close()
+            self._worker.add_block_header(block_header)
+        elif prot == "t":
+            # Receive new transaction
+            tx_json = json.loads(data[1:])["tx_json"]
+            client_sock.close()
+            self._worker.add_transaction(tx_json)
+        elif prot in "rx":
+            # Receive request for transaction proof or balance
+            # Send "spv" back so client can exclude this reply
+            client_sock.sendall("spv".encode())
+            client_sock.close()
+        else:
+            client_sock.close()
+
+
 class SPVClient(NetNode):
     """SPVClient class"""
 
-    def __init__(self, privkey, pubkey, address):
-        super().__init__(privkey, pubkey, address)
+    def __init__(self, privkey, pubkey, address, listener=_SPVClientListener):
+        super().__init__(privkey, pubkey, address, listener)
         self._hash_transactions_map = {}
         genesis = Block.get_genesis()
         genesis_hash = algo.hash1_dic(genesis.header)
@@ -29,9 +60,6 @@ class SPVClient(NetNode):
         # Thread locks
         self._trans_lock = threading.RLock()
         self._blkheader_lock = threading.RLock()
-        # Listener
-        self._listener = _SPVClientListener(address, self)
-        threading.Thread(target=self._listener.run).start()
 
     @classmethod
     def new(cls, address):
@@ -148,37 +176,6 @@ class SPVClient(NetNode):
         # Assume majority reply is valid
         valid_reply = max(replies, key=replies.count)
         return json.loads(valid_reply)
-
-
-class _SPVClientListener(_NetNodeListener):
-    """SPV client's Listener class"""
-
-    def handle_client_data(self, data, client_sock):
-        """Handle client data based on protocol indicator"""
-        prot = data[0].lower()
-        if prot == "n":
-            # Sent by the central server when a new node joins
-            address = json.loads(data[1:])
-            # print(f"{self._worker.name} added a node to their network.")
-            self._worker.add_peer(address)
-            client_sock.close()
-        elif prot == "h":
-            # Receive new block header
-            block_header = json.loads(data[1:])
-            client_sock.close()
-            self._worker.add_block_header(block_header)
-        elif prot == "t":
-            # Receive new transaction
-            tx_json = json.loads(data[1:])["tx_json"]
-            client_sock.close()
-            self._worker.add_transaction(tx_json)
-        elif prot in "rx":
-            # Receive request for transaction proof or balance
-            # Send "spv" back so client can exclude this reply
-            client_sock.sendall("spv".encode())
-            client_sock.close()
-        else:
-            client_sock.close()
 
 
 def spv_main_send_transaction(spv):

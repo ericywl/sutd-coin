@@ -64,8 +64,11 @@ else
 
   if [ -n "$double_spend" ]; then
     python src/double_spend.py $((33345)) "VENDOR" &
+    sleep 1
     sudo nice -n -3 python src/double_spend.py $((33346)) "MINER" &
+    sleep 1
     python src/double_spend.py $((33347)) "SPV" &
+    sleep 1
   elif [ -n "$selfish" ]; then
     sudo nice -n -3 python src/selfish.py $((33345)) &
     IDS+=($!)
