@@ -1,7 +1,6 @@
 """Double spending demonstration"""
 import time
 import json
-import queue
 import threading
 
 import algo
@@ -14,47 +13,59 @@ from block import Block
 
 class DoubleSpendMiner(Miner):
     """DoubleSpendMiner class"""
-    INIT_MODE = 0
-    FORK_MODE = 1
-    FIRE_MODE = 2
+    INIT_MODE = 0  # Initial mode
+    FORK_MODE = 1  # Start creating private blockchain fork
+    FIRE_MODE = 2  # Start thinking about publishing all withheld blocks
 
     def __init__(self, privkey, pubkey, address):
         super().__init__(privkey, pubkey, address, listen=True)
+        self.mode = DoubleSpendMiner.INIT_MODE
         self.excluded_transactions = set()
         self.withheld_blocks = []
-        self.mode = DoubleSpendMiner.INIT_MODE
         self.pubchain_count = 0
+        # Thread locks
+        self.withheld_blk_lock = threading.RLock()
         self.pubchain_count_lock = threading.RLock()
 
     def _get_tx_pool(self):
         return super()._get_tx_pool() - self.excluded_transactions
 
     def create_block(self, prev_hash=None):
-        if self.mode == DoubleSpendMiner.FORK_MODE and self.withheld_blocks:
-            blk = self.withheld_blocks[-1]
-            return super().create_block(algo.hash1_dic(blk.header))
-        else:
+        with self.withheld_blk_lock:
+            if (self.mode == DoubleSpendMiner.FORK_MODE
+                    and self.withheld_blocks):
+                blk = self.withheld_blocks[-1]
+                return super().create_block(algo.hash1_dic(blk.header))
             return super().create_block()
 
     def _broadcast_block(self, block):
         if self.mode == DoubleSpendMiner.FORK_MODE:
-            self.withheld_blocks.append(block)
+            with self.withheld_blk_lock:
+                self.withheld_blocks.append(block)
         elif self.mode == DoubleSpendMiner.FIRE_MODE:
             # Start thinking of firing
-            self.withheld_blocks.append(block)
-            with self.pubchain_count_lock:
+            self.withheld_blk_lock.acquire()
+            self.pubchain_count_lock.acquire()
+            try:
+                self.withheld_blocks.append(block)
                 if len(self.withheld_blocks) > self.pubchain_count:
                     self.push_blocks()
+            finally:
+                self.withheld_blk_lock.release()
+                self.pubchain_count_lock.release()
         else:
             super()._broadcast_block(block)
 
     def push_blocks(self):
-        for blk in self.withheld_blocks:
-            self._broadcast_block(blk)
-        self.withheld_blocks = []
-        self.mode = DoubleSpendMiner.INIT_MODE
+        """Publish all the blocks in withheld blocks list"""
+        with self.withheld_blk_lock:
+            for blk in self.withheld_blocks:
+                self._broadcast_block(blk)
+            self.withheld_blocks = []
+            self.mode = DoubleSpendMiner.INIT_MODE
 
     def find_peer(self, clsname):
+        """Find peer with a particular classname"""
         for peer in self.peers:
             if peer["class"] == clsname:
                 return peer
@@ -64,47 +75,52 @@ class DoubleSpendMiner(Miner):
 class _DoubleSpendMinerListener(_MinerListener):
     """DoubleSpendMinerListener class"""
 
-    def handle_client_data(self, data, client_sock):
-        prot = data[0].lower()
-        if prot == "b":
-            if self._worker.mode == DoubleSpendMiner.INIT_MODE:
-                # Change to fork mode if badSPV receive coins
-                blk_json = json.loads(data[1:])["blk_json"]
-                blk = Block.from_json(blk_json)
-                bad_spv = self._worker.find_peer("DoubleSpendSPVClient")
-                for tx_json in blk.transactions:
-                    blk_tx = Transaction.from_json(tx_json)
-                    if (blk_tx.sender == self._worker.pubkey and
-                            blk_tx.receiver == bad_spv["pubkey"]):
-                        self._worker.mode = DoubleSpendMiner.FORK_MODE
-                        break
-            elif self._worker.mode == DoubleSpendMiner.FORK_MODE:
-                with self._worker.pubchain_count_lock:
-                    self._worker.pubchain_count += 1
-            self._handle_block(data, client_sock)
-        elif prot == "t":
-            self._ds_handle_transaction(data, client_sock)
-        else:
-            # Handle as per usual
-            super().handle_client_data(data, client_sock)
+    def _handle_block(self, data, client_sock):
+        # Receive new block
+        blk_json = json.loads(data[1:])["blk_json"]
+        client_sock.close()
+        if self._worker.mode == DoubleSpendMiner.INIT_MODE:
+            blk = Block.from_json(blk_json)
+            bad_spv = self._worker.find_peer("DoubleSpendSPVClient")
+            # Check if block contains badSPV transaction
+            # ie. badSPV got the money from badMiner
+            for tx_json in blk.transactions:
+                blk_tx = Transaction.from_json(tx_json)
+                if (blk_tx.sender == self._worker.pubkey and
+                        blk_tx.receiver == bad_spv["pubkey"]):
+                    self._worker.mode = DoubleSpendMiner.FORK_MODE
+                    break
+        elif self._worker.mode == DoubleSpendMiner.FORK_MODE:
+            with self._worker.pubchain_count_lock:
+                self._worker.pubchain_count += 1
+        # Stop mining if new block is received
+        self._worker.stop_mine.set()
+        self._worker.block_queue.put(blk_json)
 
-    def _ds_handle_transaction(self, data, client_sock):
+    def _handle_transaction(self, data, client_sock):
+        # Receive new transaction
         tx_json = json.loads(data[1:])["tx_json"]
+        client_sock.close()
         recv_tx = Transaction.from_json(tx_json)
         bad_spv = self._worker.find_peer("DoubleSpendSPVClient")
         vendor = self._worker.find_peer("Vendor")
         if self._worker.mode == DoubleSpendMiner.FORK_MODE:
-            # Receive coins from bad SPV (double spend)
+            # Check if transaction is from bad SPV (double spend)
             if (recv_tx.sender == bad_spv["pubkey"]
                     and recv_tx.receiver == self._worker.pubkey):
                 self._worker.mode = DoubleSpendMiner.FIRE_MODE
+        # Check for vendor transaction
         if (recv_tx.sender == bad_spv["pubkey"]
                 and recv_tx.receiver == vendor["pubkey"]):
             # Exclude vendor transaction
             self._worker.excluded_transactions.add(tx_json)
-            client_sock.close()
         else:
-            self._handle_transaction(data, client_sock)
+            # Default case
+            if self._worker.all_tx_lock.acquire(False):
+                self._worker.add_transaction(tx_json)
+                self._worker.all_tx_lock.release()
+            else:
+                self._worker.tx_queue.put(tx_json)
 
 
 class DoubleSpendSPVClient(SPVClient):
