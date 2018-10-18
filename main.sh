@@ -20,12 +20,14 @@ if [[ $UID != 0 ]]; then
 fi
 
 trap finish SIGHUP SIGINT SIGTERM
-while getopts ":hm:s:f" flag; do
+while getopts ":hm:s:fd" flag; do
   case $flag in
     m) # Set miner count.
       miner_count=$OPTARG ;;
     s) # Set SPV client count.
       spv_client_count=$OPTARG ;;
+    d) # Enable double spend.
+      double_spend=true ;;
     f) # enable selfish miner
       selfish=true ;;
     h | *) # Display help.
@@ -55,12 +57,16 @@ else
 
   for i in $(seq 1 $miner_count)
     do
-      python src/miner.py $(($i + 12345)) $selfish &
+      python src/miner.py $(($i + 12345)) $double_spend $selfish &
       IDS+=($!)
       sleep 1
     done
 
-  if [ -n "$selfish" ]; then
+  if [ -n "$double_spend" ]; then
+    python src/double_spend.py $((33345)) "VENDOR" &
+    sudo nice -n -3 python src/double_spend.py $((33346)) "MINER" &
+    python src/double_spend.py $((33347)) "SPV" &
+  elif [ -n "$selfish" ]; then
     sudo nice -n -3 python src/selfish.py $((33345)) &
     IDS+=($!)
     sleep 1

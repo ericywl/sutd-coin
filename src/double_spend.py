@@ -1,4 +1,6 @@
 """Double spending demonstration"""
+import sys
+import os
 import time
 import json
 import threading
@@ -129,7 +131,6 @@ class DoubleSpendSPVClient(SPVClient):
     # because the miner can earn rewards from mining and those earned rewards
     # will be able to compensate for the "cheated" amount
 
-
 class Vendor(SPVClient):
     """Vendor class"""
 
@@ -138,7 +139,6 @@ class Vendor(SPVClient):
         # Make new protocol prefix so buyer can receive this message?
         # Used by DoubleSpendMiner to determine when to start forking
         print(f"{self.__class__.__name__} sent product for {tx_hash}")
-
 
 def map_pubkey_to_name(obs):
     """Map pubkey to name in balance"""
@@ -222,6 +222,26 @@ def test():
     result = vendor.verify_transaction_proof(vtx_hash)
     print(f"\nVendor verify transaction: {result}")
 
+def main():
+    try:
+        if sys.argv[2] == "MINER":
+            miner = DoubleSpendMiner.new(("127.0.0.1", int(sys.argv[1])))
+            miner.startup()
+            print("BadMiner started..")
+            while not os.path.exists("mine_lock"):
+                time.sleep(0.5)
+
+        elif sys.argv[2] == "VENDOR":
+            vendor = Vendor.new(("127.0.0.1", int(sys.argv[1])))
+            vendor.startup()
+            print("Vendor started..")
+
+        elif sys.argv[2] == "SPV":
+            spv = DoubleSpendSPVClient.new(("127.0.0.1", int(sys.argv[1])))
+            spv.startup()
+            print("BadSPVClient started..")
+    except IndexError:
+        print("Not enough arguments provided.")
 
 if __name__ == "__main__":
-    test()
+    main()

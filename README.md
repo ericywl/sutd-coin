@@ -72,7 +72,7 @@ transactions to others, if they have any coins.
 
 ### Double-Spending
 
-Demonstrated with `python src/double_spend.py`. The following is a
+Demonstrated with `./main.sh -m 1 -d`. The following is a
 step-by-step description of what happens in the demonstration. In this
 scenario, **BadMiner** and **BadSPVClient** can be the same person but with
 different accounts.
@@ -90,8 +90,7 @@ different accounts.
    to **BadMiner's** account.
 6. **BadMiner** excludes the **BadSPVClient-Vendor** transaction from his/her
    transaction pool but includes the **BadSPVClient-BadMiner** transaction
-   in (5), and starts mining to create a fork at the block that has the 
-   **BadSPV-Vendor** transaction.
+   in (5) (which will be valid in the **BadMiner**'s fork), and starts mining to create a fork at the block that has the **BadSPV-Vendor** transaction.
 7. **BadMiner** pushes a series of blocks, which after being resolved, 
    invalidates the **BadSPV-Vendor** transaction since it is not in the
    blockchain. 
