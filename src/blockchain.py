@@ -1,5 +1,6 @@
 """Blockchain class declaration file"""
 import copy
+import random
 
 from block import Block, generate_transactions
 from transaction import Transaction
@@ -14,6 +15,8 @@ class Blockchain:
         self._hash_block_map = hash_block_map
         # Dictionary of last block hash to chain length
         self._endhash_clen_map = endhash_clen_map
+        # Orphan blocks
+        self._hash_orphan_map = {}
 
     @classmethod
     def new(cls):
@@ -39,10 +42,17 @@ class Blockchain:
 
     def add(self, block):
         """Add new block to chain"""
-        # Verify block
-        self.verify(block)
+        # Check previous block exist in blocks list
         curr_hash = algo.hash1_dic(block.header)
         prev_hash = block.header["prev_hash"]
+        if prev_hash not in self._hash_block_map:
+            if prev_hash not in self._hash_orphan_map:
+                self._hash_orphan_map[curr_hash] = block
+                return
+            old_block = self._hash_orphan_map.pop(prev_hash)
+            self.add(old_block)
+        # Verify block
+        self.verify(block)
         self._hash_block_map[curr_hash] = block
         # If the previous block is one of the last blocks,
         # replace the previous hash out with the current one
@@ -55,15 +65,6 @@ class Blockchain:
         # and add the current block hash into dictionary
         else:
             self._endhash_clen_map[curr_hash] = self._get_chain_length(block)
-
-    def _check_prev_exist(self, prev_hash):
-        """Check block with prev_hash exist in list"""
-        try:
-            self._hash_block_map[prev_hash]
-        except KeyError:
-            return False
-        else:
-            return True
 
     def _check_prev_valid(self, prev_hash):
         """Check if previous block is valid"""
@@ -82,15 +83,12 @@ class Blockchain:
         prev_block = self._hash_block_map[prev_hash]
         trans_set = set(self.get_transactions_by_fork(prev_block))
         blk_trans_set = set(block.transactions)
-        num_b_transactions = len(blk_trans_set)
+        num_transactions = len(blk_trans_set)
         remaining_transactions = blk_trans_set - trans_set
-        return len(remaining_transactions) == num_b_transactions
+        return len(remaining_transactions) == num_transactions
 
     def verify(self, block):
         """Verify the block"""
-        # Check previous block exist in blocks list
-        if not self._check_prev_exist(block.header["prev_hash"]):
-            raise Exception("Previous block does not exist.")
         # Check that previous block is valid
         if not self._check_prev_valid(block.header["prev_hash"]):
             raise Exception("Previous block is invalid.")
@@ -190,8 +188,11 @@ class Blockchain:
                 if converted_tx.receiver not in balance:
                     balance[converted_tx.receiver] = 0
                 # Coinbase transaction
-                if i == 0 and converted_tx.sender == converted_tx.receiver:
-                    balance[converted_tx.receiver] += converted_tx.amount
+                if i == 0:
+                    if converted_tx.sender == converted_tx.receiver:
+                        balance[converted_tx.receiver] += converted_tx.amount
+                    else:
+                        raise Exception("No coinbase transaction.")
                 # Normal transaction
                 else:
                     balance[converted_tx.sender] -= converted_tx.amount
@@ -227,21 +228,21 @@ def main():
     import threading
     blockchain = Blockchain.new()
     hashes = []
-    # Generate 10 blocks with 10 transactions per block
-    for i in range(7):
+    transactions = None
+    for i in range(5):
         print("Creating block {}...".format(i))
-        b_transactions = generate_transactions(10)
+        transactions = generate_transactions(10)
         prev_block = blockchain.resolve()
         prev_hash = algo.hash1_dic(prev_block.header)
-        new_block = Block.new(prev_hash, b_transactions, threading.Event())
+        new_block = Block.new(prev_hash, transactions, threading.Event())
         hashes.append(algo.hash1_dic(new_block.header))
         blockchain.add(new_block)
     # Introduce fork
     prev_hash = hashes[2]
-    for i in range(4):
+    for i in range(3):
         print("Creating fork block {}...".format(i))
-        f_transactions = generate_transactions(10)
-        fork_block = Block.new(prev_hash, f_transactions, threading.Event())
+        transactions = generate_transactions(10)
+        fork_block = Block.new(prev_hash, transactions, threading.Event())
         blockchain.add(fork_block)
         prev_hash = algo.hash1_dic(fork_block.header)
     # Try to resolve
@@ -250,6 +251,13 @@ def main():
     last_blk = blockchain.resolve()
     # print("Post-resolve: " + str(blockchain.endhash_clen_map))
     print("Last block hash: {}".format(algo.hash1_dic(last_blk.header)))
+
+    print("Attempting to slide in a sneaky duplicate transaction..")
+    rogue_transactions = generate_transactions(9) \
+        + random.sample(transactions, 1)
+    prev_hash = algo.hash1_dic(last_blk.header)
+    new_block = Block.new(prev_hash, rogue_transactions, threading.Event())
+    blockchain.add(new_block)
 
 
 if __name__ == "__main__":

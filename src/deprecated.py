@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 import threading
 import random
+import itertools
 
 from typing import List, Tuple
 
@@ -34,12 +35,9 @@ def create_coin_network(
         else:
             nodes.append(SPVClient.new(addr))
             pubkey_index_map[nodes[i].pubkey] = i + 1 - num_miners
-    for node1 in nodes:
-        for node2 in nodes:
-            if node1 != node2:
-                node1.add_peer(node2)
+    for node, other_node in itertools.permutations(nodes, 2):
+        node.add_peer({ "address": other_node.address, "pubkey": other_node.pubkey })
     return nodes[:num_miners], nodes[num_miners:]
-
 
 def miner_run(miner: Miner):
     """Execute miner routine"""
@@ -106,7 +104,7 @@ def spv_client_run(spv_client: SPVClient):
 
 
 def parallel_nodes_run(miners: List[Miner], spv_clients: List[SPVClient]):
-    """Run SPV client routine parallely"""
+    """Run SPV client routine in parallel"""
     num_nodes = len(miners) + len(spv_clients)
     with ThreadPoolExecutor(max_workers=num_nodes) as executor:
         for miner in miners:
@@ -116,13 +114,7 @@ def parallel_nodes_run(miners: List[Miner], spv_clients: List[SPVClient]):
     time.sleep(3)
     print(f"Blockchain ends: {miners[0].blockchain.endhash_clen_map}\n")
 
-
-def main():
-    """Main function"""
+if __name__ == "__main__":
     miners, spv_clients = create_coin_network(4, 4, 12345)
     for _ in range(7):
         parallel_nodes_run(miners, spv_clients)
-
-
-if __name__ == "__main__":
-    main()
