@@ -61,6 +61,8 @@ When a block is added to the blockchain, the miner compares the previous
 transactions in the blockchain and the transactions in the added block to
 ensure that the same transaction cannot be included twice.
 
+An exception is thrown when an existing transaction is attempted to be added back into the blockchain.
+
 ## Payments between Miners and SPV Clients
 
 `sudo ./main.sh -m NUM1 -s NUM2`
