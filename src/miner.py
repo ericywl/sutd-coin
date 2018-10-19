@@ -178,7 +178,7 @@ class Miner(NetNode):
 
     def print_tail_lengths(self):
         """Print all the lengths of the forks in the blockchain nicely"""
-        print("Blockchain tails: \t", end="")
+        print("Blockchain tails: ", end="")
         for key, value in self.blockchain.endhash_clen_map.items():
             print(f"{key[-7:]} => {value} \t", end="", flush=True)
         print("")
