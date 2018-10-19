@@ -178,6 +178,7 @@ class Miner(NetNode):
 
     def print_tail_lengths(self):
         """Print all the lengths of the forks in the blockchain nicely"""
+        print("Blockchain tails: \t", end="")
         for key, value in self.blockchain.endhash_clen_map.items():
             print(f"{key[-7:]} => {value} \t", end="", flush=True)
         print("")
@@ -277,7 +278,6 @@ class Miner(NetNode):
     def _broadcast_block(self, block):
         # b is only taken by miners while h is taken by spv_clients
         blk_json = block.to_json()
-        print(len(blk_json))
         self.broadcast_message("b" + json.dumps({"blk_json": blk_json}))
         self.broadcast_message("h" + json.dumps(block.header))
 
@@ -376,14 +376,14 @@ def main():
     # Execute miner routine
     miner = Miner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
-    should_print_tails = len(sys.argv) <= 2 or (
-        len(sys.argv) > 2 and sys.argv[2].lower() != "s")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
+    should_print_tails = len(sys.argv) <= 2 or (
+        len(sys.argv) > 2 and sys.argv[2].lower() != "s")
     while True:
         if len(sys.argv) == 2:
             # only create transactions if not used in attack demo
-            for _ in range(random.randint(1, 2)):
+            for _ in range(random.randint(1, 3)):
                 miner_main_send_tx(miner)
         blk = miner.create_block()
         time.sleep(1)

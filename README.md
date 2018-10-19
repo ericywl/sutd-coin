@@ -9,7 +9,7 @@ version._**
 
 ## Pre-resquisites
 
-If using blockchain.ova, you'll need to `pip install monsterurl` to install a
+If using blockchain.ova, you'll need to do `pip install monsterurl` to install a
 random name generator that we use to identify nodes.
 
 ## Usage
@@ -17,14 +17,17 @@ random name generator that we use to identify nodes.
 To start the demonstration, use `sudo ./main.sh {OPTIONS}`. The options include
 the following:
 
-| Options  | Details                  |
-| -------- | ------------------------ |
-| `-m NUM` | Create NUM miners        |
-| `-s NUM` | Create NUM SPV clients   |
-| `-f`     | Create one selfish miner |
-| `-d`     | Simulate double spending |
+| Options  | Details                                         |
+| -------- | ----------------------------------------------- |
+| `-m NUM` | Create NUM miners, where NUM is an integer      |
+| `-s NUM` | Create NUM SPV clients, where NUM is an integer |
+| `-f`     | Create one selfish miner                        |
+| `-d`     | Simulate double spending                        |
 
-**_Note: At least 2 miners should be included when running the simulation. Simulation is also not meant to run with a large number of nodes (e.g. 20)_**
+**_Notes_**:
+
+-   **_At least 2 miners should be included when running the simulation_**.
+-   **_The simulation is not meant to be run with a large number of nodes (e.g. 20)_**
 
 ## Mining and Coin Creation
 
@@ -50,9 +53,14 @@ Fork resolution is implemented in `blockchain.py:resolve`. The blockchain
 object maintains a list of tails whenever a block is added. This list is
 used afterwards to find a chain that has the longest length in terms of
 blocks - the shorter chains are "removed", resolving the fork. If chains
-of similar length are found, we simulate a pseudo **proof of work** by summing
-the hash values in a chain to determine which chain to accept ie. the
-chain with the lowest cummulative hash will be accepted.
+of similar length are found, we simulate a pseudo **proof of work** by
+summing the hash values in a chain to determine which chain to accept ie.
+the chain with the lowest cummulative hash will be accepted.
+
+We can also see fork resolution in action when running
+`sudo ./main.sh -m NUM`. Since multiple miners are competing, there will be
+occasions where two (or more) miners mine a new block at the same time, thus
+requiring fork resolution.
 
 ## Transaction Resending Protection
 
@@ -129,7 +137,7 @@ the **Miner**. Eventually he would publish his blocks and invalidate the
 **Vendor** will start printing _False_ because they are sad now and their
 previous payment from **BadSPVClient** was invalidated from the blockchain.
 
-_The demonstration may have a chance of failing due to some unforseen race
+_The demonstration may have a chance of failing due to some unforeseen race
 conditions (the adversary losing), so run the same command again!_
 
 ### Selfish Mining
@@ -164,7 +172,43 @@ the rewards that the miners gets from ~53% to ~65%.
 
 #### Example
 
-![Selfish mining algorithm](img/selfish1.png?raw=true)
+```python
+SelfishMiner PungentPastFungus created a block.
+SelfishMiner balance state: {'PungentPastFungus': 100}
+Miner WarmWretchedWraith created a block.
+Block pushed by SelfishMiner - PungentPastFungus ----> (first publish)
+SelfishMiner balance state: {'PungentPastFungus': 100}
+SelfishMiner PungentPastFungus created a block.
+SelfishMiner balance state: {'PungentPastFungus': 200}
+SelfishMiner PungentPastFungus created a block.
+SelfishMiner balance state: {'PungentPastFungus': 300}
+Miner WarmWretchedWraith created a block.
+Block pushed by SelfishMiner - PungentPastFungus ----> (second publish)
+Block pushed by SelfishMiner - PungentPastFungus
+SelfishMiner balance state: {'PungentPastFungus': 300}
+```
+
+The above is a console output snippet taken from one of the runs above.
+Here, we can see that the first publish happens when the public and private
+blockchains are both 1-block long. In our implementation, the selfish mining
+algorithm with publish the head of private chain if the public and private
+blockchains are of same length. This is due to the deterministic nature of
+SUTDCoin's fork resolution. Our fork resolution uses cummulative hash if forks
+are of the same length. Since cummulative hash is fairly random (dependent
+on nonce which is random), the **SelfishMiner** has a 50/50 chance of getting
+the reward by publishing when its private chain is at the same length as
+public, instead of not getting anything at all. In this case, the
+**SelfishMiner** won (shown by the balance state not changing), so yeah!
+
+On the second publish, we can see that **SelfishMiner** has amassed two private
+blocks. So when the normal **Miner** creates a block and broadcasts it, the
+**SelfishMiner** bamboozles the normal **Miner** by publishing two blocks, thus
+wasting the normal **Miner**'s effort. After these two events, the
+**SelfishMiner**'s balance is at 300.
+
+**_Note: The balance state shown is the selfish miner's. We assume that the
+selfish miner will be ahead in most cases and hence have a lastest balance
+state._**
 
 ## Major Differences between Bitcoin and SUTDCoin
 
