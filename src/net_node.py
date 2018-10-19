@@ -69,7 +69,6 @@ class NetNode:
             # sent by the central server when requested for a list of addresses
             addresses = json.loads(reply[1:])["addresses"]
             self.set_peers(addresses)
-        # print(f"Established connections with {len(self._peers)} nodes")
         data = {
             "class": self.__class__.__name__,
             "address": self.address,

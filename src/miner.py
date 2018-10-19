@@ -26,7 +26,6 @@ class _MinerListener(_NetNodeListener):
         if prot == "n":
             # Sent by the central server when a new node joins
             peer = json.loads(data[1:])
-            # print(f"{self._worker.name} has added a node to their network.")
             self._worker.add_peer(peer)
             client_sock.close()
         elif prot == "b":
@@ -185,6 +184,8 @@ class Miner(NetNode):
     def create_block(self, prev_hash=None):
         """Create a new block"""
         # Update blockchain and balance state (thread safe)
+        if prev_hash is not None and prev_hash not in self._blockchain.hash_block_map.keys():
+            print(prev_hash, self._blockchain.hash_block_map)
         prev_blk = None if prev_hash is None else \
             self._blockchain.hash_block_map[prev_hash]
         last_blk = self._update(prev_blk)
