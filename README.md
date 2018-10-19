@@ -15,7 +15,7 @@ the following:
 | `-m NUM` | Create NUM miners        |
 | `-s NUM` | Create NUM SPV clients   |
 | `-f`     | Create one selfish miner |
-| `-d`
+| `-d`     | Simulate double spending |
 
 For double spending, we will be using `python src/double_spend.py` for a
 sequential demonstration because the results are more obvious compared to
@@ -24,8 +24,9 @@ in a multi-process case and it is also easier to implement.
 **_Note: At least 2 miners should be included when running the simulation._**
 
 ## Mining and Coin Creation
+`sudo ./main.sh -m NUM`
 
-Mining is demonstrated in `sudo ./main.sh -m NUM`. Using the demonstration,
+Using the demonstration,
 we can see multiple miners competing with each other to append to the
 blockchain. Occasionally, two or more miners will create blocks at the same
 time, resulting in forks. This is resolved through fork resolution, which will
@@ -39,6 +40,8 @@ generation of the first coins.
 
 ## Fork Resolution
 
+`python src/blockchain.py`
+
 Fork resolution is implemented in `blockchain.py:resolve`. The blockchain
 object maintains a list of tails whenever a block is added. This list is
 used afterwards to find a chain that has the longest length in terms of
@@ -47,9 +50,9 @@ of similar length are found, we simulate a pseudo **proof of work** by summing
 the hash values in a chain to determine which chain to accept ie. the
 chain with the lowest cummulative hash will be accepted.
 
-Fork Resolution is demonstrated with `python src/blockchain.py`.
-
 ## Transaction Resending Protection
+
+`python src/blockchain.py`
 
 Transaction resending protection is achieved by adding a 4-byte nonce onto the
 transaction object. Therefore, two transactions with the exact same sender,
@@ -58,12 +61,10 @@ When a block is added to the blockchain, the miner compares the previous
 transactions in the blockchain and the transactions in the added block to
 ensure that the same transaction cannot be included twice.
 
-Transaction Resending Protection is also demonstrated with
-`python src/blockchain.py`.
-
 ## Payments between Miners and SPV Clients
 
-This is demonstrated with `sudo ./main.sh -m NUM1 -s NUM2`.
+`sudo ./main.sh -m NUM1 -s NUM2`
+
 Setting a random number of miners and SPV clients will enable them to
 send random transactions to one another. The miners will mine blocks and get
 rewarded for their mining, and will then use the reward to send transactions
@@ -75,8 +76,9 @@ transactions to others, if they have any coins.
 
 ### Double-Spending
 
-Demonstrated with `./main.sh -m 1 -d`. The following is a
-step-by-step description of what happens in the demonstration. In this
+`sudo ./main.sh -m 1 -d`
+
+The following is a step-by-step description of what happens in the demonstration. In this
 scenario, **BadMiner** and **BadSPVClient** can be the same person but with
 different accounts.
 
@@ -110,8 +112,9 @@ After receiving the product, **BadSPVClient** will send 50 coins to **BadMiner**
 **Vendor** will start printing _False_ because they are sad now and their previous payment from **BadSPVClient** was invalidated from the blockchain.
 
 ### Selfish Mining
+`sudo ./main.sh -m 1 -f`
 
-Demonstrated with `sudo ./main.sh -m 1 -f`. This will create 1 normal miner and
+This will create 1 normal miner and
 1 selfish miner that will compete with one another for block mining. For the
 tests, we introduced a `BE_SELFISH` class variable to SelfishMiner so as to
 see the difference that selfish mining can make. A 1-on-1 test was chosen
