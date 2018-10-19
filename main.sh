@@ -61,7 +61,7 @@ else
 
   for i in $(seq 1 $miner_count)
     do
-      if $selfish; then
+      if [ -n "$selfish" ]; then
         python src/miner.py $(($i + 12345)) 's' &
       else
         python src/miner.py $(($i + 12345)) $double_spend &

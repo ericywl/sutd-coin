@@ -88,6 +88,7 @@ class _MinerListener(_NetNodeListener):
 
 class Miner(NetNode):
     """Miner class"""
+    MAX_NUM_TX = 8
 
     def __init__(self, privkey, pubkey, address, listener=_MinerListener):
         super().__init__(privkey, pubkey, address, listener)
@@ -276,6 +277,7 @@ class Miner(NetNode):
     def _broadcast_block(self, block):
         # b is only taken by miners while h is taken by spv_clients
         blk_json = block.to_json()
+        print(len(blk_json))
         self.broadcast_message("b" + json.dumps({"blk_json": blk_json}))
         self.broadcast_message("h" + json.dumps(block.header))
 
@@ -342,8 +344,7 @@ class Miner(NetNode):
             # No transactions to process, return coinbase transaction only
             if not tx_pool:
                 return gathered_transactions
-            # num_tx = random.randint(1, len(transaction_pool))
-            num_tx = len(tx_pool)
+            num_tx = min(Miner.MAX_NUM_TX, len(tx_pool))
             while True:
                 if num_tx <= 0:
                     return gathered_transactions
@@ -375,16 +376,18 @@ def main():
     # Execute miner routine
     miner = Miner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
+    should_print_tails = len(sys.argv) <= 2 or (
+        len(sys.argv) > 2 and sys.argv[2].lower() != "s")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
     while True:
         if len(sys.argv) == 2:
             # only create transactions if not used in attack demo
-            for _ in range(random.randint(1, 10)):
+            for _ in range(random.randint(1, 2)):
                 miner_main_send_tx(miner)
         blk = miner.create_block()
         time.sleep(1)
-        if blk and sys.argv[2].lower() != "s":
+        if blk and should_print_tails:
             miner.print_tail_lengths()
 
 

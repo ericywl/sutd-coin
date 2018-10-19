@@ -24,11 +24,7 @@ the following:
 | `-f`     | Create one selfish miner |
 | `-d`     | Simulate double spending |
 
-For double spending, we will be using `python src/double_spend.py` for a
-sequential demonstration because the results are more obvious compared to
-in a multi-process case and it is also easier to implement.
-
-**_Note: At least 2 miners should be included when running the simulation._**
+**_Note: At least 2 miners should be included when running the simulation. Simulation is also not meant to run with a large number of nodes (e.g. 20)_**
 
 ## Mining and Coin Creation
 
@@ -153,7 +149,7 @@ The tests were run with `nice -5` on the tested miner and `nice 0` (default)
 on the other. This means that the tested miner has slightly higher resource
 priority in both cases. In real world, this would mean that the tested miner
 has slightly higher computational power and should therefore win the
-competition more often than not even without selfish mining. Results are
+competition more often than not, even without selfish mining. Results are
 collected after the blockchain reach length of 100 ie. the longest chain
 reaches 100 blocks. The table below shows the percentage of reward pool that
 a majority miner gets with vs. without selfish mining algorithm.
@@ -165,6 +161,10 @@ a majority miner gets with vs. without selfish mining algorithm.
 
 As we can see from the table above, using selfish mining algorithm increases
 the rewards that the miners gets from ~53% to ~65%.
+
+#### Example
+
+![Selfish mining algorithm](img/selfish1.png?raw=true)
 
 ## Major Differences between Bitcoin and SUTDCoin
 
