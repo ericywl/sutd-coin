@@ -24,6 +24,7 @@ in a multi-process case and it is also easier to implement.
 **_Note: At least 2 miners should be included when running the simulation._**
 
 ## Mining and Coin Creation
+
 `sudo ./main.sh -m NUM`
 
 Using the demonstration,
@@ -107,13 +108,24 @@ different accounts.
 
 #### What you should see:
 
-After running `./main.sh -m 1 -d`, both **BadMiner** and **Miner** will mine as per normal. Once **BadMiner** mines a block (may take some time), **BadMiner** sends 50 coins over to **BadSPVClient**. **BadSPVClient** waits for the transaction to be approved and sends the coins over to **Vendor**. A constant stream of _True_ and _False_ are being printed by **Vendor** to validate the purchase transaction.
+After running `./main.sh -m 1 -d`, both **BadMiner** and **Miner** will mine
+as per normal. Once **BadMiner** mines a block (may take some time),
+**BadMiner** sends 50 coins over to **BadSPVClient**. **BadSPVClient** waits
+for the transaction to be approved and sends the coins over to **Vendor**. A
+constant stream of _True_ and _False_ are being printed by **Vendor** to
+validate the purchase transaction.
 
-After receiving the product, **BadSPVClient** will send 50 coins to **BadMiner** (an invalid transaction) which will only be valid to **BadMiner**. **BadMiner** will be fighting for his life (50 coins) to win the **Miner**. Eventually he would publish his blocks and invalidate the **Vendor** transaction.
+After receiving the product, **BadSPVClient** will send 50 coins to
+**BadMiner** (an invalid transaction) which will only be valid to
+**BadMiner**. **BadMiner** will be fighting for his life (50 coins) to win
+the **Miner**. Eventually he would publish his blocks and invalidate the
+**Vendor** transaction.
 
-**Vendor** will start printing _False_ because they are sad now and their previous payment from **BadSPVClient** was invalidated from the blockchain.
+**Vendor** will start printing _False_ because they are sad now and their
+previous payment from **BadSPVClient** was invalidated from the blockchain.
 
 ### Selfish Mining
+
 `sudo ./main.sh -m 1 -f`
 
 This will create 1 normal miner and
@@ -145,11 +157,11 @@ the rewards that the miners gets from ~53% to ~65%.
 
 ## Major Differences between Bitcoin and SUTDCoin
 
-|                    | Bitcoin                                                               | SUTDCoin                                                                                                                  |
-| ------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Transaction Model  | UTXO model                                                            | Address:Balance model                                                                                                     |
-| Spending Coins     | Receivers must fulfill scriptSig or scriptPubKey to spend outputs     | Receivers can spend after transaction is added to blockchain                                                              |
-| Fork Resolution    | Uses Proof-of-Work and first-come-first-serve if forks have same PoW  | Uses chain length and cummulative hash if forks are same length                                                           |
-| Timestamp Validity | Timestamp of block has to be larger than median of previous 11 blocks | Timestamp of block has to be larger than previous block                                                                   |
-| Block Difficulty   | Dynamic and changes every 2016 blocks                                 | Static, currently always 000029fffffffff...                                                                               |
-| Market Value       | Can be exchanged for SGD8856 per Bitcoin as of writing                | Absolutely useless <img src="https://ih0.redbubble.net/image.500553700.1057/sticker,375x360-bg,ffffff.u2.png" width="70"> |
+|                    | Bitcoin                                                               | SUTDCoin                                                                                                                    |
+| ------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Transaction Model  | UTXO model                                                            | Address:Balance model                                                                                                       |
+| Spending Coins     | Receivers must fulfill scriptSig or scriptPubKey to spend outputs     | Receivers can spend after transaction is added to blockchain                                                                |
+| Fork Resolution    | Uses Proof-of-Work and first-come-first-serve if forks have same PoW  | Uses chain length and cummulative hash if forks are same length                                                             |
+| Timestamp Validity | Timestamp of block has to be larger than median of previous 11 blocks | Timestamp of block has to be larger than previous block                                                                     |
+| Block Difficulty   | Dynamic and changes every 2016 blocks                                 | Static, currently always 000029fffffffff...                                                                                 |
+| Market Value       | Can be exchanged for SGD8856 per Bitcoin as of writing                | Absolutely worthless <img src="https://ih0.redbubble.net/image.500553700.1057/sticker,375x360-bg,ffffff.u2.png" width="70"> |

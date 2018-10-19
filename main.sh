@@ -39,9 +39,13 @@ if [ $OPTIND -eq 1 ]; then
   print_usage;
   exit 1;
 elif [ -z "$miner_count" ]; then
-    echo "Please set miners";
-    exit 1;
+  echo "Please set miners";
+  exit 1;
+elif [ -n "$double_spend" ] && [ -n "$selfish" ]; then
+  echo "Cannot set double spend and selfish miner together"
+  exit 1;
 else
+  echo "Use [CTRL+C] to stop the program if you want..."
   python src/trusted_server.py &
   IDS+=($!)
   sleep 3
@@ -79,7 +83,6 @@ fi
 sleep 5
 touch mine_lock
 
-echo "Press [CTRL+C] to stop.."
 while true
 do
 	sleep 1

@@ -358,7 +358,7 @@ def main():
         time.sleep(0.5)
     while True:
         if len(sys.argv) == 2:
-            # only create transactions if no selfishminer
+            # only create transactions if not used in attack demo
             miner_main_send_tx(miner)
         blk = miner.create_block()
         time.sleep(1)
