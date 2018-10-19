@@ -54,7 +54,11 @@ class DoubleSpendMiner(Miner):
         if self.mode is not DoubleSpendMiner.INIT_MODE:
             with self.withheld_blk_lock:
                 blk = self.withheld_blocks[-1]
-            return super().create_block(algo.hash1_dic(blk.header))
+            prev_hash = algo.hash1_dic(blk.header)
+            # do a dumb wait here
+            while prev_hash not in self._blockchain.hash_block_map.keys():
+                time.sleep(0.1)
+            return super().create_block(prev_hash)
         return super().create_block()
 
     def _broadcast_block(self, block):
