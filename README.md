@@ -174,19 +174,19 @@ the rewards that the miners gets from ~53% to ~65%.
 SelfishMiner PungentPastFungus created a block.
 SelfishMiner balance state: {'PungentPastFungus': 100}
 Miner WarmWretchedWraith created a block.
-Block pushed by SelfishMiner - PungentPastFungus ----> (first publish)
+Block pushed by SelfishMiner - PungentPastFungus ------> (first publish)
 SelfishMiner balance state: {'PungentPastFungus': 100}
 SelfishMiner PungentPastFungus created a block.
 SelfishMiner balance state: {'PungentPastFungus': 200}
 SelfishMiner PungentPastFungus created a block.
 SelfishMiner balance state: {'PungentPastFungus': 300}
 Miner WarmWretchedWraith created a block.
-Block pushed by SelfishMiner - PungentPastFungus ----> (second publish)
+Block pushed by SelfishMiner - PungentPastFungus ------> (second publish)
 Block pushed by SelfishMiner - PungentPastFungus
 SelfishMiner balance state: {'PungentPastFungus': 300}
 ```
 
-The above is a console output snippet taken from one of the runs above.
+The above is a console output snippet taken from one of the runs.
 Here, we can see that the first publish happens when the public and private
 blockchains are both 1-block long. In our implementation, the selfish mining
 algorithm with publish the head of private chain if the public and private
