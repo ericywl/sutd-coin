@@ -41,6 +41,7 @@ class DoubleSpendMiner(Miner):
         super().__init__(privkey, pubkey, address, _DoubleSpendMinerListener)
         self.mode = DoubleSpendMiner.INIT_MODE
         self.excluded_transactions = set()
+        self.fork_block = None
         self.withheld_blocks = []
         self.pubchain_count = 0
         # Thread locks
@@ -52,9 +53,12 @@ class DoubleSpendMiner(Miner):
 
     def create_block(self, prev_hash=None):
         if self.mode is not DoubleSpendMiner.INIT_MODE:
-            with self.withheld_blk_lock:
-                blk = self.withheld_blocks[-1]
-            prev_hash = algo.hash1_dic(blk.header)
+            if self.withheld_blocks:
+                with self.withheld_blk_lock:
+                    blk = self.withheld_blocks[-1]
+                prev_hash = algo.hash1_dic(blk.header)
+            else:
+                prev_hash = algo.hash1_dic(self.fork_block.header)
             # do a dumb wait here
             while prev_hash not in self._blockchain.hash_block_map.keys():
                 time.sleep(0.1)
@@ -100,8 +104,7 @@ class DoubleSpendMiner(Miner):
                 if (blk_tx.sender == self.pubkey and
                         blk_tx.receiver == bad_spv["pubkey"]):
                     self.mode = DoubleSpendMiner.FORK_MODE
-                    with self.withheld_blk_lock:
-                        self.withheld_blocks.append(blk)
+                    self.fork_block = blk
                     print("FORK_MODE ACTIVATED AT", blk)
                     break
         else:
@@ -194,7 +197,8 @@ def main():
             # Try to get coins by mining
             while miner.pubkey not in miner.balance or \
                     miner.balance[miner.pubkey] < Vendor.PRODUCT_PRICE:
-                miner.create_block()
+                if miner.create_block():
+                    print(miner.blockchain.endhash_clen_map)
                 time.sleep(1)
             # Send coins to badSPV
             print(
@@ -204,8 +208,7 @@ def main():
             # Wait for badSPV to get the coins, then start forking
             while True:
                 if miner.mode is not DoubleSpendMiner.INIT_MODE:
-                    blk = miner.create_block()
-                    if blk:
+                    if miner.create_block():
                         print(miner.blockchain.endhash_clen_map)
                 time.sleep(1)
 
@@ -217,22 +220,21 @@ def main():
                 time.sleep(1)
             for vtx in vendor.transactions:
                 vtx_hash = algo.hash1(vtx)
-                try:
-                    while not vendor.verify_transaction_proof(vtx_hash):
-                        time.sleep(2)
-                except:
-                    pass
+                while not vendor.verify_transaction_proof(vtx_hash):
+                    time.sleep(2)
                 vendor.send_product(vtx_hash)
             while True:
                 for vtx in vendor.transactions:
                     vtx_hash = algo.hash1(vtx)
-                    print(vendor.verify_transaction_proof(vtx_hash))
+                    check = vendor.verify_transaction_proof(vtx_hash)
+                    print(f"Verify vendor transaction in blockchain: {check}")
                 time.sleep(5)
 
         elif sys.argv[2] == "SPV":
             spv = DoubleSpendSPVClient.new(("127.0.0.1", int(sys.argv[1])))
             spv.startup()
-            print("BadSPVClient started, waiting for money from DoubleSpendMiner to spend.")
+            print("BadSPVClient started, waiting for "
+                  + "coins from BadMiner to spend.")
             balance = 0
             while balance < Vendor.PRODUCT_PRICE:
                 balance = spv.request_balance()
