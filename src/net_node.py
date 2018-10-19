@@ -3,22 +3,24 @@ from concurrent.futures import ThreadPoolExecutor
 import json
 import socket
 import threading
+from monsterurl import get_monster
 
 import algo
-from monsterurl import get_monster
 from trusted_server import TrustedServer
 
 
 class NetNode:
     """NetNode class"""
 
-    def __init__(self, privkey, pubkey, address):
+    def __init__(self, privkey, pubkey, address, listener=None):
         self._keypair = (privkey, pubkey)
         self._address = address
         self._peers = []
         self._name = get_monster()
-        clsname = self.__class__.__name__
-        print(f"Starting {clsname} - {self.name} on {address}")
+        self._listener = listener(address, self)
+        print(f"Starting {self.__class__.__name__} - {self.name} on {address}")
+        if listener:
+            threading.Thread(target=self._listener.run).start()
 
     @property
     def name(self):
@@ -46,13 +48,13 @@ class NetNode:
         return self._peers
 
     def set_peers(self, peers):
-        """set peers on first discovery"""
+        """Set peers on first discovery"""
         for peer in peers:
             peer["address"] = tuple(peer["address"])
         self._peers = peers
 
     def add_peer(self, peer):
-        """Add miner to peer list"""
+        """Add a node to peer list"""
         peer["address"] = tuple(peer["address"])
         if peer["address"] != self.address:
             self._peers.append(peer)
@@ -66,14 +68,16 @@ class NetNode:
             # sent by the central server when requested for a list of addresses
             addresses = json.loads(reply[1:])["addresses"]
             self.set_peers(addresses)
-        # print(f"Established connections with {len(self._peers)} nodes")
         data = {
+            "class": self.__class__.__name__,
             "address": self.address,
             "pubkey": self.pubkey,
             "name": self.name
         }
         NetNode._send_message("n" + json.dumps(data),
                               (TrustedServer.HOST, TrustedServer.PORT))
+        print(
+            f"{self.__class__.__name__} established connection with {len(self.peers)} peers")
 
     def broadcast_message(self, msg):
         """Broadcast the message to peers"""
@@ -97,6 +101,20 @@ class NetNode:
         executor.shutdown(wait=True)
         replies = [future.result() for future in futures]
         return replies
+
+    def find_peer_by_clsname(self, clsname):
+        """Find peer with a particular classname"""
+        for peer in self.peers:
+            if peer["class"] == clsname:
+                return peer
+        raise Exception("Can't find peer with given class name")
+
+    def find_peer_by_pubkey(self, pubkey):
+        """Find peer with particular pubkey"""
+        for peer in self.peers:
+            if peer["pubkey"] == pubkey:
+                return peer
+        return None
 
     # STATIC METHODS
 

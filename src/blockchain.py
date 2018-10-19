@@ -250,7 +250,7 @@ def main():
     # print("Pre-resolve: " + str(blockchain.endhash_clen_map))
     last_blk = blockchain.resolve()
     # print("Post-resolve: " + str(blockchain.endhash_clen_map))
-    print("Last block hash: {}".format(algo.hash1_dic(last_blk.header)))
+    print("Last block hash after resolving: {}".format(algo.hash1_dic(last_blk.header)))
 
     print("Attempting to slide in a sneaky duplicate transaction..")
     rogue_transactions = generate_transactions(9) \

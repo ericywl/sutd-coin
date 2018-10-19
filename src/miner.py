@@ -1,5 +1,4 @@
 """Miner class declaration file"""
-from concurrent.futures import ThreadPoolExecutor
 import time
 import sys
 import copy
@@ -18,11 +17,81 @@ from blockchain import Blockchain
 from transaction import Transaction
 
 
+class _MinerListener(_NetNodeListener):
+    """Miner's Listener class"""
+
+    def handle_client_data(self, data, client_sock):
+        """Handle client data based on protocol indicator"""
+        prot = data[0].lower()
+        if prot == "n":
+            # Sent by the central server when a new node joins
+            peer = json.loads(data[1:])
+            self._worker.add_peer(peer)
+            client_sock.close()
+        elif prot == "b":
+            self._handle_block(data, client_sock)
+        elif prot == "t":
+            self._handle_transaction(data, client_sock)
+        elif prot == "r":
+            self._handle_transaction_proof(data, client_sock)
+        elif prot == "x":
+            self._handle_balance(data, client_sock)
+        else:
+            # either header or wrong message format
+            client_sock.close()
+
+    def _handle_block(self, data, client_sock):
+        """Receive new block"""
+        blk_json = json.loads(data[1:])["blk_json"]
+        if client_sock:
+            client_sock.close()
+        # Stop mining if new block is received
+        self._worker.stop_mine.set()
+        self._worker.block_queue.put(blk_json)
+
+    def _handle_transaction(self, data, client_sock):
+        """Receive new transaction"""
+        tx_json = json.loads(data[1:])["tx_json"]
+        if client_sock:
+            client_sock.close()
+        if self._worker.all_tx_lock.acquire(False):
+            self._worker.add_transaction(tx_json)
+            self._worker.all_tx_lock.release()
+        else:
+            self._worker.tx_queue.put(tx_json)
+
+    def _handle_transaction_proof(self, data, client_sock):
+        """Process request for transaction proof"""
+        tx_hash = json.loads(data[1:])["tx_hash"]
+        tup = self._worker.get_transaction_proof(tx_hash)
+        if tup is None:
+            msg = json.dumps({
+                "blk_hash": None,
+                "proof": None,
+                "last_blk_hash": None
+            })
+        else:
+            msg = json.dumps({
+                "blk_hash": tup[0],
+                "proof": tup[1],
+                "last_blk_hash": tup[2]
+            })
+        client_sock.sendall(msg.encode())
+        client_sock.close()
+
+    def _handle_balance(self, data, client_sock):
+        pubkey = json.loads(data[1:])["identifier"]
+        bal = self._worker.get_balance(pubkey)
+        client_sock.sendall(str(bal).encode())
+        client_sock.close()
+
+
 class Miner(NetNode):
     """Miner class"""
+    MAX_NUM_TX = 8
 
-    def __init__(self, privkey, pubkey, address, listen=True):
-        super().__init__(privkey, pubkey, address)
+    def __init__(self, privkey, pubkey, address, listener=_MinerListener):
+        super().__init__(privkey, pubkey, address, listener)
         self._balance = {}
         self._blockchain = Blockchain.new()
         self._added_transactions = set()
@@ -36,10 +105,6 @@ class Miner(NetNode):
         self.added_tx_lock = threading.RLock()
         self.balance_lock = threading.RLock()
         self.stop_mine = threading.Event()
-        # Listener
-        if listen:
-            self._listener = _MinerListener(address, self)
-            threading.Thread(target=self._listener.run).start()
 
     @classmethod
     def new(cls, address):
@@ -49,6 +114,22 @@ class Miner(NetNode):
         privkey = signing_key.to_string().hex()
         pubkey = verifying_key.to_string().hex()
         return cls(privkey, pubkey, address)
+
+    @property
+    def verbose_balance(self):
+        """A more human-readable balance state"""
+        orig_balance = self.balance
+        verbose_balance = {}
+        for key, val in orig_balance.items():
+            acc = self.find_peer_by_pubkey(key)
+            if acc is None:
+                if key == self.pubkey:
+                    verbose_balance[self.name] = val
+                else:
+                    verbose_balance[key] = val
+            else:
+                verbose_balance[acc["name"]] = val
+        return verbose_balance
 
     @property
     def balance(self):
@@ -95,6 +176,13 @@ class Miner(NetNode):
             all_tx_copy = copy.deepcopy(self._all_transactions)
         return all_tx_copy
 
+    def print_tail_lengths(self):
+        """Print all the lengths of the forks in the blockchain nicely"""
+        print("Blockchain tails: ", end="")
+        for key, value in self.blockchain.endhash_clen_map.items():
+            print(f"{key[-7:]} => {value} \t", end="", flush=True)
+        print("")
+
     def create_transaction(self, receiver, amount, comment=""):
         """Create a new transaction"""
         new_tx = Transaction.new(sender=self.pubkey, receiver=receiver,
@@ -120,6 +208,8 @@ class Miner(NetNode):
     def create_block(self, prev_hash=None):
         """Create a new block"""
         # Update blockchain and balance state (thread safe)
+        if prev_hash is not None and prev_hash not in self._blockchain.hash_block_map.keys():
+            print(prev_hash, self._blockchain.hash_block_map)
         prev_blk = None if prev_hash is None else \
             self._blockchain.hash_block_map[prev_hash]
         last_blk = self._update(prev_blk)
@@ -130,12 +220,12 @@ class Miner(NetNode):
             blk_json = block.to_json()
             # Add block to blockchain (thread safe)
             self.add_block(blk_json)
+            print(f"{self.__class__.__name__} {self.name} created a block.")
             # Broadcast block and the header.
             self._broadcast_block(block)
             # Remove gathered transactions from pool and them to added pile
             with self.added_tx_lock:
                 self._added_transactions |= set(gathered_tx)
-            print(f"{self.__class__.__name__} {self.name} created a block.")
         self._update()
         return block
 
@@ -254,8 +344,7 @@ class Miner(NetNode):
             # No transactions to process, return coinbase transaction only
             if not tx_pool:
                 return gathered_transactions
-            # num_tx = random.randint(1, len(transaction_pool))
-            num_tx = len(tx_pool)
+            num_tx = min(Miner.MAX_NUM_TX, len(tx_pool))
             while True:
                 if num_tx <= 0:
                     return gathered_transactions
@@ -273,80 +362,12 @@ class Miner(NetNode):
         return self._all_transactions - self._added_transactions
 
 
-class _MinerListener(_NetNodeListener):
-    """Miner's Listener class"""
-
-    def handle_client_data(self, data, client_sock):
-        """Handle client data based on protocol indicator"""
-        prot = data[0].lower()
-        if prot == "n":
-            # Sent by the central server when a new node joins
-            peer = json.loads(data[1:])
-            # print(f"{self._worker.name} has added a node to their network.")
-            self._worker.add_peer(peer)
-            client_sock.close()
-        elif prot == "b":
-            self._handle_block(data, client_sock)
-        elif prot == "t":
-            self._handle_transaction(data, client_sock)
-        elif prot == "r":
-            self._handle_transaction_proof(data, client_sock)
-        elif prot == "x":
-            self._handle_balance(data, client_sock)
-        else:
-            # either header or wrong message format
-            client_sock.close()
-
-    def _handle_block(self, data, client_sock):
-        # Receive new block
-        blk_json = json.loads(data[1:])["blk_json"]
-        client_sock.close()
-        # Stop mining if new block is received
-        self._worker.stop_mine.set()
-        self._worker.block_queue.put(blk_json)
-
-    def _handle_transaction(self, data, client_sock):
-        # Receive new transaction
-        tx_json = json.loads(data[1:])["tx_json"]
-        client_sock.close()
-        if self._worker.all_tx_lock.acquire(False):
-            self._worker.add_transaction(tx_json)
-            self._worker.all_tx_lock.release()
-        else:
-            self._worker.tx_queue.put(tx_json)
-
-    def _handle_transaction_proof(self, data, client_sock):
-        # Process request for transaction proof
-        tx_hash = json.loads(data[1:])["tx_hash"]
-        tup = self._worker.get_transaction_proof(tx_hash)
-        if tup is None:
-            msg = json.dumps({
-                "blk_hash": None,
-                "proof": None,
-                "last_blk_hash": None
-            })
-        else:
-            msg = json.dumps({
-                "blk_hash": tup[0],
-                "proof": tup[1],
-                "last_blk_hash": tup[2]
-            })
-        client_sock.sendall(msg.encode())
-        client_sock.close()
-
-    def _handle_balance(self, data, client_sock):
-        pubkey = json.loads(data[1:])["identifier"]
-        bal = self._worker.get_balance(pubkey)
-        client_sock.sendall(str(bal).encode())
-        client_sock.close()
-
-
 def miner_main_send_tx(miner):
     """Used in main to send one transaction"""
     if miner.pubkey in miner.balance:
-        if miner.balance[miner.pubkey] > 50:
+        if miner.balance[miner.pubkey] > 10:
             other = random.choice(miner.peers)
-            miner.create_transaction(other["pubkey"], 50)
+            miner.create_transaction(other["pubkey"], 10)
             print(f"Miner {miner.name} sent transaction to {other['name']}")
 
 
@@ -355,17 +376,19 @@ def main():
     # Execute miner routine
     miner = Miner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
-    print(f"Miner established connection with {len(miner.peers)} peers")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
+    should_print_tails = len(sys.argv) <= 2 or (
+        len(sys.argv) > 2 and sys.argv[2].lower() != "s")
     while True:
         if len(sys.argv) == 2:
-            # only create transactions if no selfishminer
-            miner_main_send_tx(miner)
+            # only create transactions if not used in attack demo
+            for _ in range(random.randint(1, 3)):
+                miner_main_send_tx(miner)
         blk = miner.create_block()
         time.sleep(1)
-        if blk:
-            print(miner.blockchain.endhash_clen_map)
+        if blk and should_print_tails:
+            miner.print_tail_lengths()
 
 
 if __name__ == "__main__":
