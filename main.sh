@@ -14,7 +14,7 @@ finish() {
 }
 
 if [[ $UID != 0 ]]; then
-  echo "Please run script with sudo (for nice):"
+  echo 'Please run script with sudo (for nice):'
   echo "sudo $0 $*"
   exit 1
 fi
@@ -39,13 +39,13 @@ if [ $OPTIND -eq 1 ]; then
   print_usage;
   exit 1;
 elif [ -z "$miner_count" ]; then
-  echo "Please set miners";
+  echo 'Please set miners';
   exit 1;
 elif [ -n "$double_spend" ] && [ -n "$selfish" ]; then
-  echo "Cannot set double spend and selfish miner together"
+  echo 'Cannot set double spend and selfish miner together'
   exit 1;
 else
-  echo "Use [CTRL+C] to stop the program if you want..."
+  echo 'Use [CTRL+C] to stop the program if you want...'
   python src/trusted_server.py &
   IDS+=($!)
   sleep 3
@@ -67,11 +67,11 @@ else
     done
 
   if [ -n "$double_spend" ]; then
-    python src/double_spend.py $((33345)) "VENDOR" &
+    python src/double_spend.py $((33345)) 'VENDOR' &
     sleep 1
-    sudo nice -n -5 python src/double_spend.py $((33346)) "MINER" &
+    sudo nice -n -5 python src/double_spend.py $((33346)) 'MINER' &
     sleep 1
-    python src/double_spend.py $((33347)) "SPV" &
+    python src/double_spend.py $((33347)) 'SPV' &
     sleep 1
   elif [ -n "$selfish" ]; then
     sudo nice -n -3 python src/selfish.py $((33345)) &
@@ -81,6 +81,8 @@ else
 fi
 
 sleep 5
+echo 'Initialization complete, starting demo...'
+echo ''
 touch mine_lock
 
 while true

@@ -1,9 +1,17 @@
-# Blockchain Technology
+# Blockchain Technology - SUTDCoin
+
+<img src="https://steamuserimages-a.akamaihd.net/ugc/847091252321971372/B89526245165AFEE7127402085A036967829D278/" width=50>
 
 Mid-term project for Blockchain Technology course, all done in Python 3.6.5.
 
 **_Note: `.python-version` is for `pyenv` to keep track of local Python
 version._**
+
+## Pre-resquisites
+
+If using blockchain.ova, you'll need to:
+
+`pip install monsterurl`
 
 ## Usage
 
@@ -81,9 +89,9 @@ transactions to others, if they have any coins.
 
 `sudo ./main.sh -m 1 -d`
 
-The following is a step-by-step description of what happens in the demonstration. In this
-scenario, **BadMiner** and **BadSPVClient** can be the same person but with
-different accounts.
+The following is a step-by-step description of what happens in the demonstration.
+In this scenario, **BadMiner** and **BadSPVClient** can be the same person
+but with different accounts.
 
 1. **BadMiner** is initialized with an arbitary amount of coins (through first
    block mining).
@@ -98,7 +106,8 @@ different accounts.
    to **BadMiner's** account.
 6. **BadMiner** excludes the **BadSPVClient-Vendor** transaction from his/her
    transaction pool but includes the **BadSPVClient-BadMiner** transaction
-   in (5) (which will be valid in the **BadMiner**'s fork), and starts mining to create a fork at the block that has the **BadSPV-Vendor** transaction.
+   in (5) (which will be valid in the **BadMiner**'s fork), and starts mining
+   to create a fork at the block that has the **BadSPV-Vendor** transaction.
 7. **BadMiner** pushes a series of blocks, which after being resolved,
    invalidates the **BadSPV-Vendor** transaction since it is not in the
    blockchain.
@@ -123,6 +132,9 @@ the **Miner**. Eventually he would publish his blocks and invalidate the
 
 **Vendor** will start printing _False_ because they are sad now and their
 previous payment from **BadSPVClient** was invalidated from the blockchain.
+
+_The demonstration may have a chance of failing due to some unforseen race
+conditions (the adversary losing), so run the same command again!_
 
 ### Selfish Mining
 
@@ -163,5 +175,5 @@ the rewards that the miners gets from ~53% to ~65%.
 | Spending Coins     | Receivers must fulfill scriptSig or scriptPubKey to spend outputs     | Receivers can spend after transaction is added to blockchain                                                                |
 | Fork Resolution    | Uses Proof-of-Work and first-come-first-serve if forks have same PoW  | Uses chain length and cummulative hash if forks are same length                                                             |
 | Timestamp Validity | Timestamp of block has to be larger than median of previous 11 blocks | Timestamp of block has to be larger than previous block                                                                     |
-| Block Difficulty   | Dynamic and changes every 2016 blocks                                 | Static, currently always 000029fffffffff...                                                                                 |
+| Block Difficulty   | Dynamic and changes every 2016 blocks                                 | Static, currently always 000018fffff...                                                                                     |
 | Market Value       | Can be exchanged for SGD8856 per Bitcoin as of writing                | Absolutely worthless <img src="https://ih0.redbubble.net/image.500553700.1057/sticker,375x360-bg,ffffff.u2.png" width="70"> |

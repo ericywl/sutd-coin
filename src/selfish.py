@@ -1,7 +1,6 @@
 """Adversary classes declaration file"""
 import sys
 import time
-import threading
 import json
 import queue
 import os.path
@@ -24,6 +23,7 @@ class _SelfishMinerListener(_MinerListener):
                 self._worker.push_blocks(qlen)
             self._handle_block(data, client_sock)
         else:
+            # Handle any other protocols
             super().handle_client_data(data, client_sock)
 
 
@@ -42,11 +42,12 @@ class SelfishMiner(Miner):
         """Push out num blocks from withheld blocks"""
         if num > self.withheld_blocks.qsize():
             raise Exception("Not enough withheld blocks.")
+        # Get num blocks from queue and publish them
         for _ in range(num):
-            fker = self.withheld_blocks.get()
-            b_msg = json.dumps({"blk_json": fker.to_json()})
+            blk = self.withheld_blocks.get()
+            b_msg = json.dumps({"blk_json": blk.to_json()})
             self.broadcast_message("b" + b_msg)
-            self.broadcast_message("h" + json.dumps(fker.header))
+            self.broadcast_message("h" + json.dumps(blk.header))
             print(f"Block pushed by {self.__class__.__name__} - {self.name}")
 
     def _broadcast_block(self, block):
@@ -65,7 +66,6 @@ def main():
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
     while True:
-        # miner_main_send_tx(miner)
         miner.create_block()
         print(miner.balance)
         time.sleep(1)

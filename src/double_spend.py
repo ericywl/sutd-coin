@@ -24,7 +24,7 @@ class _DoubleSpendMinerListener(_MinerListener):
         # Receive new transaction
         tx_json = json.loads(data[1:])["tx_json"]
         client_sock.close()
-        # ds_handle_transaction will return True if the transaction is
+        # ds_handle_transaction() will return True if the transaction is
         # excluded by the worker, else False
         if not self._worker.ds_handle_transaction(tx_json):
             # Handle as per usual
@@ -46,7 +46,7 @@ class DoubleSpendMiner(Miner):
         self.pubchain_count = 0
         # Thread locks
         self.withheld_blk_lock = threading.RLock()
-        self.pubchain_count_lock = threading.RLock()
+        self.pubchain_cnt_lock = threading.RLock()
 
     def _get_tx_pool(self):
         return super()._get_tx_pool() - self.excluded_transactions
@@ -72,20 +72,22 @@ class DoubleSpendMiner(Miner):
         elif self.mode == DoubleSpendMiner.FIRE_MODE:
             # Start thinking of firing
             self.withheld_blk_lock.acquire()
-            self.pubchain_count_lock.acquire()
+            self.pubchain_cnt_lock.acquire()
             try:
                 self.withheld_blocks.append(block)
+                # Publish private blocks if longer than public
                 if len(self.withheld_blocks) > self.pubchain_count:
                     self.push_blocks()
             finally:
                 self.withheld_blk_lock.release()
-                self.pubchain_count_lock.release()
+                self.pubchain_cnt_lock.release()
         else:
             super()._broadcast_block(block)
 
     def push_blocks(self):
         """Publish all the blocks in withheld blocks list"""
-        print("BOMBS AWAY")
+        print("\nDoubleSpendMiner publishing private blocks...")
+        print("BOMBS AWAY\n")
         with self.withheld_blk_lock:
             for blk in self.withheld_blocks:
                 super()._broadcast_block(blk)
@@ -105,12 +107,24 @@ class DoubleSpendMiner(Miner):
                         blk_tx.receiver == bad_spv["pubkey"]):
                     self.mode = DoubleSpendMiner.FORK_MODE
                     self.fork_block = blk
+                    print("\nDoubleSpendMiner starting to create private fork...")
                     print("FORK_MODE ACTIVATED AT", blk)
                     break
         else:
             # Maintain public blockchain length from fork point
-            with self.pubchain_count_lock:
+            with self.pubchain_cnt_lock:
                 self.pubchain_count += 1
+            if self.mode == DoubleSpendMiner.FIRE_MODE:
+                # Start thinking of firing
+                self.withheld_blk_lock.acquire()
+                self.pubchain_cnt_lock.acquire()
+                try:
+                    # Publish private blocks if longer than public
+                    if len(self.withheld_blocks) > self.pubchain_count:
+                        self.push_blocks()
+                finally:
+                    self.withheld_blk_lock.release()
+                    self.pubchain_cnt_lock.release()
 
     def ds_handle_transaction(self, tx_json):
         """Handle received transaction from listener"""
@@ -118,11 +132,13 @@ class DoubleSpendMiner(Miner):
         bad_spv = self.find_peer_by_clsname("DoubleSpendSPVClient")
         vendor = self.find_peer_by_clsname("Vendor")
         if self.mode == DoubleSpendMiner.FORK_MODE:
-            # Activate FIRE_MODE if transaction is from bad SPV (double spend)
+            # Activate FIRE_MODE if transaction is from badSPV (double spend)
+            # This signals that badSPV received the product from vendor
             if (recv_tx.sender == bad_spv["pubkey"]
                     and recv_tx.receiver == self.pubkey):
                 self.mode = DoubleSpendMiner.FIRE_MODE
-                print("FIRE_MODE ACTIVATED")
+                print("\nDoubleSpendMiner preparing to publish private blocks...")
+                print("FIRE_MODE ACTIVATED\n")
         if (recv_tx.sender == bad_spv["pubkey"]
                 and recv_tx.receiver == vendor["pubkey"]):
             # Exclude vendor transaction
@@ -136,10 +152,10 @@ class _DoubleSpendSPVClientListener(_SPVClientListener):
         if data[0].lower() == "p":
             # Vendor sent product, so send coins back to DoubleSpendMiner
             bad_miner = self._worker.find_peer_by_clsname("DoubleSpendMiner")
-            self._worker.create_transaction(bad_miner["pubkey"],
-                                            Vendor.PRODUCT_PRICE,
+            self._worker.create_transaction(bad_miner["pubkey"], Vendor.PRODUCT_PRICE,
                                             comment="DoubleSpend")
-            print("SPV Client got IPad, give dirty money to DoubleSpendMiner")
+            print("DoubleSpendSPVClient got iPad, giving dirty money "
+                  + "back to DoubleSpendMiner...")
             client_sock.close()
         else:
             # Handle as per usual
@@ -171,78 +187,86 @@ class Vendor(SPVClient):
         print(f"{self.__class__.__name__} sent product to {buyer['name']}")
 
 
-# Only used in test()
-def map_pubkey_to_name(obs):
-    """Map pubkey to name in balance"""
-    name_balance = {}
-    for key, val in obs.balance.items():
-        items = [x for x in obs.peers if x["pubkey"] == key]
-        if key == obs.pubkey:
-            name_balance[obs.name] = val
-        elif items:
-            item = items[0]
-            name_balance[item["name"]] = val
-    return name_balance
+def run_miner(address):
+    """Run DoubleSpendMiner instance"""
+    miner = DoubleSpendMiner.new(address)
+    miner.startup()
+    print(f"DoubleSpendMiner established connection with "
+          + f"{len(miner.peers)} peers")
+    while not os.path.exists("mine_lock"):
+        time.sleep(0.5)
+    # Try to get coins by mining
+    while miner.pubkey not in miner.balance or \
+            miner.balance[miner.pubkey] < Vendor.PRODUCT_PRICE:
+        if miner.create_block():
+            print(miner.blockchain.endhash_clen_map)
+        time.sleep(1)
+    # Send coins to badSPV
+    print(f"DoubleSpendMiner send {Vendor.PRODUCT_PRICE} coins to "
+          + "DoubleSpendSPVClient")
+    bad_spv = miner.find_peer_by_clsname("DoubleSpendSPVClient")
+    miner.create_transaction(bad_spv["pubkey"], Vendor.PRODUCT_PRICE,
+                             comment="Never gonna give you up")
+    # Wait for badSPV to get the coins, then start forking
+    while True:
+        if miner.mode is not DoubleSpendMiner.INIT_MODE:
+            if miner.create_block():
+                print(miner.blockchain.endhash_clen_map)
+        time.sleep(1)
+
+
+def run_vendor(address):
+    """Run VendorSPV instance"""
+    vendor = Vendor.new(address)
+    vendor.startup()
+    print(f"Vendor established connection with {len(vendor.peers)} peers")
+    while not os.path.exists("mine_lock"):
+        time.sleep(0.5)
+    while not vendor.transactions:
+        time.sleep(1)
+    for vtx in vendor.transactions:
+        vtx_hash = algo.hash1(vtx)
+        while not vendor.verify_transaction_proof(vtx_hash):
+            time.sleep(4)
+        vendor.send_product(vtx_hash)
+    while True:
+        for vtx in vendor.transactions:
+            vtx_hash = algo.hash1(vtx)
+            check = vendor.verify_transaction_proof(vtx_hash)
+            print(f"Vendor verify transaction {vtx_hash} "
+                  + f"in blockchain: {check}")
+        time.sleep(12)
+
+
+def run_spv(address):
+    """Run DoubleSpendSPV instance"""
+    spv = DoubleSpendSPVClient.new(address)
+    spv.startup()
+    print("DoubleSpendSPVClient established connection with "
+          + f"{len(spv.peers)} peers")
+    while not os.path.exists("mine_lock"):
+        time.sleep(0.5)
+    print("DoubleSpendSPVClient waiting for coins from "
+          + "DoubleSpendMiner to spend.")
+    balance = 0
+    while balance < Vendor.PRODUCT_PRICE:
+        balance = spv.request_balance()
+        time.sleep(1)
+    print("DoubleSpendSPVClient feeling rich now, going to buy iPad...")
+    vendor = spv.find_peer_by_clsname("Vendor")
+    spv.create_transaction(vendor["pubkey"], Vendor.PRODUCT_PRICE,
+                           comment="Never gonna let you down")
 
 
 def main():
     """Main function"""
     try:
         if sys.argv[2] == "MINER":
-            miner = DoubleSpendMiner.new(("127.0.0.1", int(sys.argv[1])))
-            miner.startup()
-            print("DoubleSpendMiner started..")
-            while not os.path.exists("mine_lock"):
-                time.sleep(0.5)
-            # Try to get coins by mining
-            while miner.pubkey not in miner.balance or \
-                    miner.balance[miner.pubkey] < Vendor.PRODUCT_PRICE:
-                if miner.create_block():
-                    print(miner.blockchain.endhash_clen_map)
-                time.sleep(1)
-            # Send coins to badSPV
-            print(
-                f"DoubleSpendMiner send {Vendor.PRODUCT_PRICE} coins to BadSPVClient")
-            bad_spv = miner.find_peer_by_clsname("DoubleSpendSPVClient")
-            miner.create_transaction(bad_spv["pubkey"], Vendor.PRODUCT_PRICE)
-            # Wait for badSPV to get the coins, then start forking
-            while True:
-                if miner.mode is not DoubleSpendMiner.INIT_MODE:
-                    if miner.create_block():
-                        print(miner.blockchain.endhash_clen_map)
-                time.sleep(1)
-
+            run_miner(("127.0.0.1", int(sys.argv[1])))
         elif sys.argv[2] == "VENDOR":
-            vendor = Vendor.new(("127.0.0.1", int(sys.argv[1])))
-            vendor.startup()
-            print("Vendor started..")
-            while not vendor.transactions:
-                time.sleep(1)
-            for vtx in vendor.transactions:
-                vtx_hash = algo.hash1(vtx)
-                while not vendor.verify_transaction_proof(vtx_hash):
-                    time.sleep(2)
-                vendor.send_product(vtx_hash)
-            while True:
-                for vtx in vendor.transactions:
-                    vtx_hash = algo.hash1(vtx)
-                    check = vendor.verify_transaction_proof(vtx_hash)
-                    print(f"Verify vendor transaction in blockchain: {check}")
-                time.sleep(5)
-
+            run_vendor(("127.0.0.1", int(sys.argv[1])))
         elif sys.argv[2] == "SPV":
-            spv = DoubleSpendSPVClient.new(("127.0.0.1", int(sys.argv[1])))
-            spv.startup()
-            print("BadSPVClient started, waiting for "
-                  + "coins from BadMiner to spend.")
-            balance = 0
-            while balance < Vendor.PRODUCT_PRICE:
-                balance = spv.request_balance()
-                time.sleep(1)
-            print("BadSPVClient feeling rich now, going to buy IPad")
-            vendor = spv.find_peer_by_clsname("Vendor")
-            spv.create_transaction(
-                vendor["pubkey"], Vendor.PRODUCT_PRICE, "Never gonna give you up")
+            run_spv(("127.0.0.1", int(sys.argv[1])))
     except IndexError:
         print("Not enough arguments provided.")
 

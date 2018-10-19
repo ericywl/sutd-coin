@@ -18,8 +18,7 @@ class NetNode:
         self._peers = []
         self._name = get_monster()
         self._listener = listener(address, self)
-        clsname = self.__class__.__name__
-        print(f"Starting {clsname} - {self.name} on {address}")
+        print(f"Starting {self.__class__.__name__} - {self.name} on {address}")
         if listener:
             threading.Thread(target=self._listener.run).start()
 
@@ -49,13 +48,13 @@ class NetNode:
         return self._peers
 
     def set_peers(self, peers):
-        """set peers on first discovery"""
+        """Set peers on first discovery"""
         for peer in peers:
             peer["address"] = tuple(peer["address"])
         self._peers = peers
 
     def add_peer(self, peer):
-        """Add miner to peer list"""
+        """Add a node to peer list"""
         peer["address"] = tuple(peer["address"])
         if peer["address"] != self.address:
             self._peers.append(peer)

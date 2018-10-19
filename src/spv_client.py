@@ -1,5 +1,4 @@
 """SPV Client class declaration file"""
-from concurrent.futures import ThreadPoolExecutor
 import copy
 import json
 import threading
@@ -152,13 +151,13 @@ class SPVClient(NetNode):
         self._blkheader_lock.acquire()
         self._trans_lock.acquire()
         try:
-            if blk_hash not in self._hash_blkheader_map \
-                    or last_blk_hash not in self._hash_blkheader_map:
-                raise Exception("Invalid transaction proof reply.")
+            if (blk_hash not in self._hash_blkheader_map
+                    or last_blk_hash not in self._hash_blkheader_map):
+                return False
             tx_json = self._hash_transactions_map[tx_hash]
             blk_header = self._hash_blkheader_map[blk_hash]
             if not verify_proof(tx_json, proof, blk_header["root"]):
-                # Majority lied (eclipse attack)
+                # Potential eclipse attack
                 raise Exception("Transaction proof verification failed.")
         finally:
             self._blkheader_lock.release()
@@ -205,7 +204,8 @@ def main():
     spv = SPVClient.new(("127.0.0.1", int(sys.argv[1])))
     spv.startup()
     print(f"SPVClient established connection with {len(spv.peers)} peers")
-    time.sleep(2)
+    while not os.path.exists("mine_lock"):
+        time.sleep(0.5)
     while True:
         # Request transaction proof
         spv_main_verify_tx(spv)

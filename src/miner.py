@@ -196,12 +196,12 @@ class Miner(NetNode):
             blk_json = block.to_json()
             # Add block to blockchain (thread safe)
             self.add_block(blk_json)
+            print(f"{self.__class__.__name__} {self.name} created a block.")
             # Broadcast block and the header.
             self._broadcast_block(block)
             # Remove gathered transactions from pool and them to added pile
             with self.added_tx_lock:
                 self._added_transactions |= set(gathered_tx)
-            print(f"{self.__class__.__name__} {self.name} created a block.")
         self._update()
         return block
 
@@ -342,9 +342,9 @@ class Miner(NetNode):
 def miner_main_send_tx(miner):
     """Used in main to send one transaction"""
     if miner.pubkey in miner.balance:
-        if miner.balance[miner.pubkey] > 50:
+        if miner.balance[miner.pubkey] > 10:
             other = random.choice(miner.peers)
-            miner.create_transaction(other["pubkey"], 50)
+            miner.create_transaction(other["pubkey"], 10)
             print(f"Miner {miner.name} sent transaction to {other['name']}")
 
 
@@ -359,7 +359,8 @@ def main():
     while True:
         if len(sys.argv) == 2:
             # only create transactions if not used in attack demo
-            miner_main_send_tx(miner)
+            for _ in range(random.randint(1, 10)):
+                miner_main_send_tx(miner)
         blk = miner.create_block()
         time.sleep(1)
         if blk:
