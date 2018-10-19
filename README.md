@@ -87,9 +87,7 @@ to others. The SPV clients will try to verify transactions by requesting
 transaction proof, if they have transactions, as well as send random
 transactions to others, if they have any coins.
 
-## Attacks
-
-### Double-Spending
+## Double-Spending Attack
 
 `sudo ./main.sh -m 1 -d`
 
@@ -119,7 +117,7 @@ but with different accounts.
    still has the same X amount unspent. **Vendor** can't charge **BadSPV** because
    the **BadSPV** does not have any coins left.
 
-#### What you should see:
+### What you should see:
 
 After running `./main.sh -m 1 -d`, both **BadMiner** and **Miner** will mine
 as per normal. Once **BadMiner** mines a block (may take some time),
@@ -140,7 +138,7 @@ previous payment from **BadSPVClient** was invalidated from the blockchain.
 _The demonstration may have a chance of failing due to some unforeseen race
 conditions (the adversary losing), so run the same command again!_
 
-### Selfish Mining
+## Selfish Mining Attack
 
 `sudo ./main.sh -m 1 -f`
 
@@ -170,7 +168,7 @@ a majority miner gets with vs. without selfish mining algorithm.
 As we can see from the table above, using selfish mining algorithm increases
 the rewards that the miners gets from ~53% to ~65%.
 
-#### Example
+### Example
 
 ```python
 SelfishMiner PungentPastFungus created a block.
