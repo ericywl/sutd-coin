@@ -203,7 +203,6 @@ def main():
     """Main function"""
     spv = SPVClient.new(("127.0.0.1", int(sys.argv[1])))
     spv.startup()
-    print(f"SPVClient established connection with {len(spv.peers)} peers")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
     while True:

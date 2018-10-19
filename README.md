@@ -9,9 +9,8 @@ version._**
 
 ## Pre-resquisites
 
-If using blockchain.ova, you'll need to:
-
-`pip install monsterurl`
+If using blockchain.ova, you'll need to `pip install monsterurl` to install a
+random name generator that we use to identify nodes.
 
 ## Usage
 
@@ -70,7 +69,8 @@ When a block is added to the blockchain, the miner compares the previous
 transactions in the blockchain and the transactions in the added block to
 ensure that the same transaction cannot be included twice.
 
-An exception is thrown when an existing transaction is attempted to be added back into the blockchain.
+An exception is thrown when an existing transaction is attempted to be
+added back into the blockchain.
 
 ## Payments between Miners and SPV Clients
 
@@ -140,17 +140,16 @@ conditions (the adversary losing), so run the same command again!_
 
 `sudo ./main.sh -m 1 -f`
 
-This will create 1 normal miner and
-1 selfish miner that will compete with one another for block mining. For the
-tests, we introduced a `BE_SELFISH` class variable to SelfishMiner so as to
-see the difference that selfish mining can make. A 1-on-1 test was chosen
-because it showcases the difference between selfish mining and non-selfish
-mining more clearly. In cases where more miners were involded, the results
-were significantly more chaotic, making it hard to interpret. There are no
-transactions involved as we are using the rewards as an indicator to number
-of blocks mined.
+This will create 1 normal miner and 1 selfish miner that will compete with
+one another for block mining. For the tests, we introduced a `BE_SELFISH`
+class variable to SelfishMiner so as to see the difference that selfish
+mining can make. A 1-on-1 test was chosen because it showcases the difference
+between selfish mining and non-selfish mining more clearly. In cases where
+more miners were involded, the results were significantly more chaotic,
+making it hard to interpret. There are no transactions involved as we are
+using the rewards as an indicator to number of blocks mined.
 
-The tests were run with `nice -3` on the tested miner and `nice 0` (default)
+The tests were run with `nice -5` on the tested miner and `nice 0` (default)
 on the other. This means that the tested miner has slightly higher resource
 priority in both cases. In real world, this would mean that the tested miner
 has slightly higher computational power and should therefore win the

@@ -41,7 +41,7 @@ class _MinerListener(_NetNodeListener):
             client_sock.close()
 
     def _handle_block(self, data, client_sock):
-        # Receive new block
+        """Receive new block"""
         blk_json = json.loads(data[1:])["blk_json"]
         if client_sock:
             client_sock.close()
@@ -50,7 +50,7 @@ class _MinerListener(_NetNodeListener):
         self._worker.block_queue.put(blk_json)
 
     def _handle_transaction(self, data, client_sock):
-        # Receive new transaction
+        """Receive new transaction"""
         tx_json = json.loads(data[1:])["tx_json"]
         if client_sock:
             client_sock.close()
@@ -61,7 +61,7 @@ class _MinerListener(_NetNodeListener):
             self._worker.tx_queue.put(tx_json)
 
     def _handle_transaction_proof(self, data, client_sock):
-        # Process request for transaction proof
+        """Process request for transaction proof"""
         tx_hash = json.loads(data[1:])["tx_hash"]
         tup = self._worker.get_transaction_proof(tx_hash)
         if tup is None:
@@ -115,6 +115,22 @@ class Miner(NetNode):
         return cls(privkey, pubkey, address)
 
     @property
+    def verbose_balance(self):
+        """A more human-readable balance state"""
+        orig_balance = self.balance
+        verbose_balance = {}
+        for key, val in orig_balance.items():
+            acc = self.find_peer_by_pubkey(key)
+            if acc is None:
+                if key == self.pubkey:
+                    verbose_balance[self.name] = val
+                else:
+                    verbose_balance[key] = val
+            else:
+                verbose_balance[acc["name"]] = val
+        return verbose_balance
+
+    @property
     def balance(self):
         """Copy of balance state"""
         self._update()
@@ -158,6 +174,12 @@ class Miner(NetNode):
         with self.all_tx_lock:
             all_tx_copy = copy.deepcopy(self._all_transactions)
         return all_tx_copy
+
+    def print_tail_lengths(self):
+        """Print all the lengths of the forks in the blockchain nicely"""
+        for key, value in self.blockchain.endhash_clen_map.items():
+            print(f"{key[-7:]} => {value} \t", end="", flush=True)
+        print("")
 
     def create_transaction(self, receiver, amount, comment=""):
         """Create a new transaction"""
@@ -353,7 +375,6 @@ def main():
     # Execute miner routine
     miner = Miner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
-    print(f"Miner established connection with {len(miner.peers)} peers")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
     while True:
@@ -363,8 +384,8 @@ def main():
                 miner_main_send_tx(miner)
         blk = miner.create_block()
         time.sleep(1)
-        if blk:
-            print(miner.blockchain.endhash_clen_map)
+        if blk and sys.argv[2].lower() != "s":
+            miner.print_tail_lengths()
 
 
 if __name__ == "__main__":

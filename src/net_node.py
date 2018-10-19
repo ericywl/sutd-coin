@@ -76,6 +76,8 @@ class NetNode:
         }
         NetNode._send_message("n" + json.dumps(data),
                               (TrustedServer.HOST, TrustedServer.PORT))
+        print(
+            f"{self.__class__.__name__} established connection with {len(self.peers)} peers")
 
     def broadcast_message(self, msg):
         """Broadcast the message to peers"""
@@ -112,7 +114,7 @@ class NetNode:
         for peer in self.peers:
             if peer["pubkey"] == pubkey:
                 return peer
-        raise Exception("Can't find peer with given pubkey")
+        return None
 
     # STATIC METHODS
 

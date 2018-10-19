@@ -62,12 +62,11 @@ def main():
     # Execute miner routine
     miner = SelfishMiner.new(("127.0.0.1", int(sys.argv[1])))
     miner.startup()
-    print(f"SelfishMiner established connection with {len(miner.peers)} peers")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
     while True:
         miner.create_block()
-        print(miner.balance)
+        print("SelfishMiner balance state:", miner.verbose_balance)
         time.sleep(1)
 
 

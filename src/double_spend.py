@@ -191,15 +191,13 @@ def run_miner(address):
     """Run DoubleSpendMiner instance"""
     miner = DoubleSpendMiner.new(address)
     miner.startup()
-    print(f"DoubleSpendMiner established connection with "
-          + f"{len(miner.peers)} peers")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
     # Try to get coins by mining
     while miner.pubkey not in miner.balance or \
             miner.balance[miner.pubkey] < Vendor.PRODUCT_PRICE:
         if miner.create_block():
-            print(miner.blockchain.endhash_clen_map)
+            miner.print_tail_lengths()
         time.sleep(1)
     # Send coins to badSPV
     print(f"DoubleSpendMiner send {Vendor.PRODUCT_PRICE} coins to "
@@ -211,7 +209,7 @@ def run_miner(address):
     while True:
         if miner.mode is not DoubleSpendMiner.INIT_MODE:
             if miner.create_block():
-                print(miner.blockchain.endhash_clen_map)
+                miner.print_tail_lengths()
         time.sleep(1)
 
 
@@ -219,7 +217,6 @@ def run_vendor(address):
     """Run VendorSPV instance"""
     vendor = Vendor.new(address)
     vendor.startup()
-    print(f"Vendor established connection with {len(vendor.peers)} peers")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
     while not vendor.transactions:
@@ -242,8 +239,6 @@ def run_spv(address):
     """Run DoubleSpendSPV instance"""
     spv = DoubleSpendSPVClient.new(address)
     spv.startup()
-    print("DoubleSpendSPVClient established connection with "
-          + f"{len(spv.peers)} peers")
     while not os.path.exists("mine_lock"):
         time.sleep(0.5)
     print("DoubleSpendSPVClient waiting for coins from "

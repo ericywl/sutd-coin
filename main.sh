@@ -61,7 +61,11 @@ else
 
   for i in $(seq 1 $miner_count)
     do
-      python src/miner.py $(($i + 12345)) $double_spend $selfish &
+      if $selfish; then
+        python src/miner.py $(($i + 12345)) 's' &
+      else
+        python src/miner.py $(($i + 12345)) $double_spend &
+      fi
       IDS+=($!)
       sleep 1
     done
@@ -74,7 +78,7 @@ else
     python src/double_spend.py $((33347)) 'SPV' &
     sleep 1
   elif [ -n "$selfish" ]; then
-    sudo nice -n -3 python src/selfish.py $((33345)) &
+    sudo nice -n -5 python src/selfish.py $((33345)) &
     IDS+=($!)
     sleep 1
   fi
