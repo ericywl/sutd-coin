@@ -102,9 +102,9 @@ class DoubleSpendMiner(Miner):
                     self.mode = DoubleSpendMiner.FORK_MODE
                     with self.withheld_blk_lock:
                         self.withheld_blocks.append(blk)
-                    print("FORK_MODE ACTIVATED")
+                    print("FORK_MODE ACTIVATED AT", blk)
                     break
-        elif self.mode == DoubleSpendMiner.FORK_MODE:
+        else:
             # Maintain public blockchain length from fork point
             with self.pubchain_count_lock:
                 self.pubchain_count += 1
@@ -217,8 +217,11 @@ def main():
                 time.sleep(1)
             for vtx in vendor.transactions:
                 vtx_hash = algo.hash1(vtx)
-                while not vendor.verify_transaction_proof(vtx_hash):
-                    time.sleep(2)
+                try:
+                    while not vendor.verify_transaction_proof(vtx_hash):
+                        time.sleep(2)
+                except:
+                    pass
                 vendor.send_product(vtx_hash)
             while True:
                 for vtx in vendor.transactions:
