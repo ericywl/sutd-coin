@@ -7,9 +7,8 @@ print_usage() {
 }
 
 finish() {
-  sudo kill $(jobs -p)
-  kill 0;
-  rm mine_lock
+  kill $(jobs -p);
+  rm mine_lock;
   exit;
 }
 
